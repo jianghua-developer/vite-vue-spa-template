@@ -1,0 +1,482 @@
+# {{name}} 项目架构
+
+> 本文档描述 `{{name}}` 项目（下称"本项目"）的整体架构。
+>
+> **读者对象**：
+>
+> - **团队开发人员**：快速理解系统如何组织、各模块职责、约定与约束；
+> - **AI Agent / 大模型助手**：将本文作为理解本项目代码库的上下文，用于回答"相关文件在哪、为什么这样设计、改动应落在哪"。
+>
+> **配套文档**：[开发指南](./development-guide.md) 侧重**如何操作**（环境配置、API 调用、组件开发、测试）；本文侧重**是什么与为什么**（结构、机制、设计决策）。
+
+## 目录
+
+1. [概览](#1-概览)
+2. [目录结构与职责](#2-目录结构与职责)
+3. [技术栈与工具链](#3-技术栈与工具链)
+4. [应用启动流程](#4-应用启动流程)
+5. [核心机制](#5-核心机制)
+6. [开发约束](#6-开发约束)
+7. [关键设计决策](#7-关键设计决策)
+8. [快速定位指南](#8-快速定位指南)
+
+---
+
+## 1. 概览
+
+本项目是基于 Vite + Vue 3 + TypeScript 的单页应用（SPA），工程能力包括：严格类型检查、统一请求层、运行时可配置、可部署到任意子路径。
+
+### 技术栈
+
+| 领域 | 选型 | 说明 |
+| ------ | ------ | ------ |
+| 构建工具 | Vite | 函数式配置（mode 驱动），`root` 显式指向项目根 |
+| 框架 | Vue 3（`<script setup>`） | 已启用 `defineModel` / `propsDestructure` |
+| 语言 | TypeScript | 严格模式；`ESNext` target，旧浏览器由 legacy 插件在构建层兜底 |
+| 路由 | Vue Router 4 | `createWebHistory` + 嵌套路由，支持子目录部署 |
+| 状态管理 | Pinia | 业务 store 统一放 `stores/modules/` |
+| HTTP | Axios | 单实例 + 拦截器 + Blob 特殊处理 |
+| 测试 | Vitest | jsdom 环境，独立配置 |
+| 代码质量 | ESLint（flat config）+ vue-tsc | `pnpm run lint` + `pnpm run type-check` |
+| 包管理 | pnpm | `packageManager` 字段锁定版本 |
+
+### 分层架构
+
+```text
+┌─────────────────────────────────────────────┐
+│  views / layouts        路由级页面与布局壳    │
+├─────────────────────────────────────────────┤
+│  components/features    有状态容器组件        │
+│  components/ui          无状态展示组件        │
+├─────────────────────────────────────────────┤
+│  stores (Pinia)         业务状态              │
+│  composables            可复用组合式逻辑      │
+├─────────────────────────────────────────────┤
+│  services (Axios)       HTTP 请求层          │
+├─────────────────────────────────────────────┤
+│  router                 路由定义与守卫        │
+│  utils                  纯工具函数            │
+└─────────────────────────────────────────────┘
+```
+
+依赖方向自下而上：`services` 只依赖类型与 axios；`composables` 依赖 `services`；`features` 组件可依赖 `stores`/`composables`/`services`；`views` 组合 `features` 与 `layouts`。**禁止反向依赖**（如 `services` 中引入组件、`ui` 中访问 store）。
+
+---
+
+## 2. 目录结构与职责
+
+```text
+{{name}}/
+│
+├── index.html                              # ★ 入口 HTML（项目根目录）：加载 config.js 后挂载 Vue
+│
+├── public/                                 # Vite publicDir，静态资源不经 Vite 处理
+│   ├── favicon.svg
+│   └── config.js                           # ★ 运行时配置：合并覆盖 window.__APP_CONFIG__
+│
+├── src/                                    # 应用源码
+│   ├── main.ts                             # 应用入口：createApp，安装 router + Pinia，挂载
+│   ├── App.vue                             # 根组件：<RouterView /> 包裹
+│   │
+│   ├── assets/                             # 经 Vite 处理的静态资源（可 import）
+│   │   ├── images/
+│   │   └── styles/
+│   │       ├── main.css                    # 入口：导入 variables + reset + base
+│   │       ├── variables.css               # CSS 自定义属性（设计令牌）
+│   │       └── reset.css                   # 最小化 CSS reset
+│   │
+│   ├── types/                              # 跨模块共享类型（.d.ts，见 §6.1）
+│   │   ├── api.d.ts                        # ApiResponse、PageResult、PageParams、RequestOptions
+│   │   ├── axios.d.ts                      # axios 模块增强（实例方法返回 Promise<T>）
+│   │   ├── app-config.d.ts                 # AppConfig + window.__APP_CONFIG__ 类型
+│   │   ├── env.d.ts                        # vite/client 类型引用 + *.vue 模块声明
+│   │   ├── global.d.ts                     # 其他全局声明
+│   │   ├── auto-imports.d.ts               # ⚙ 生成：unplugin-auto-import 自动导入 API 的全局声明
+│   │   └── components.d.ts                 # ⚙ 生成：unplugin-vue-components 自动注册组件的声明
+│   │
+│   ├── router/                             # Vue Router 配置
+│   │   ├── index.ts                        # createRouter + createWebHistory(BASE_URL)
+│   │   ├── routes.ts                       # RouteRecordRaw[]，含嵌套 children
+│   │   └── guards.ts                       # beforeEach / afterEach 导航守卫
+│   │
+│   ├── stores/                             # Pinia 状态管理
+│   │   ├── index.ts                        # createPinia() 实例
+│   │   └── modules/                        # 业务 store
+│   │
+│   ├── composables/                        # 可复用组合式逻辑（有状态，无模板）
+│   │   ├── types.d.ts                      # 模块内部类型（useRequest 相关）
+│   │   ├── useAppConfig.ts                 # 返回 window.__APP_CONFIG__ 的响应式只读引用
+│   │   ├── useFeatureFlag.ts               # 基于 useAppConfig 的特性开关
+│   │   ├── useRequest.ts                   # 通用请求（GET/POST/PUT/DELETE/PATCH）
+│   │   ├── useFetchTable.ts                # 表格请求（snake_case 分页）
+│   │   ├── useDownload.ts                  # 文件下载（Content-Disposition + Firefox 兼容）
+│   │   └── useUpload.ts                    # 文件上传（进度 + error ref）
+│   │
+│   ├── services/                           # API 层，基于 axios
+│   │   ├── types.d.ts                      # 模块内部类型（CombinedConfig）
+│   │   ├── api.ts                          # get/post/put/patch/del 封装
+│   │   ├── http.ts                         # axios 实例 + 拦截器（鉴权/超时占位 + Blob 处理）
+│   │   └── errors.ts                       # 运行时值：SUCCESS_CODE + BusinessError
+│   │
+│   ├── components/                         # Vue SFC 组件
+│   │   ├── ui/                             # ★ 无状态组件：纯展示，props/emits 无副作用
+│   │   └── features/                       # ★ 有状态容器：可访问 stores/composables/API
+│   │
+│   ├── views/                              # 路由级页面组件
+│   │   ├── HomeView.vue                    # 首页
+│   │   └── NotFoundView.vue                # 404 页面
+│   │
+│   ├── layouts/                            # 页面级布局壳
+│   │   └── DefaultLayout.vue               # 默认布局：<RouterView />
+│   │
+│   └── utils/                              # 纯工具函数（无框架耦合）
+│       ├── format.ts                       # 日期、货币、数字格式化
+│       └── validation.ts                   # 表单校验辅助
+│
+├── config/                                 # ★ 工具链配置（统一管理，见 §3）
+│   ├── tsconfig.app.json                   # 浏览器/页面 TS 配置
+│   ├── tsconfig.node.json                  # Node/Vite TS 配置
+│   ├── postcss.config.mjs                  # PostCSS 配置（ESM 格式）
+│   ├── vitest.config.ts                    # Vitest 配置
+│   ├── eslint.config.mjs                   # ESLint flat config
+│   └── plugins/
+│       └── inject-app-config.ts            # ★ Vite 插件：.env -> window.__APP_CONFIG__
+│
+├── tests/                                  # 测试套件
+│   ├── unit/
+│   │   └── composables/                    # Composables 测试（Vitest）
+│   └── e2e/                                # 端到端测试（Playwright）
+│
+├── vite.config.ts                          # Vite 配置（函数式，mode 驱动）—— 根目录唯一入口
+├── tsconfig.json                           # 解决方案级 TS 配置 —— 引用 config/ 下的子配置
+├── package.json                            # 含 packageManager 字段，锁定 pnpm
+├── .npmrc                                  # pnpm 配置（strict-peer-dependencies 等）
+├── .editorconfig                           # 跨 IDE 编辑器配置
+├── .vscode/                                # VS Code 配置（推荐扩展）
+├── .env                                    # 共享环境变量
+├── .env.development                        # 开发环境变量
+├── .env.production                         # 生产环境变量
+├── .gitignore
+└── docs/                                   # 项目文档
+    ├── architecture.md                     # 本文档（架构描述）
+    └── development-guide.md                # 开发指南（操作手册）
+```
+
+**目录职责速览**：
+
+| 目录/文件 | 职责 | 禁止事项 |
+| ----------- | ------ | --------- |
+| `src/router/` | 路由定义与导航守卫 | 业务逻辑、直接请求 API |
+| `src/stores/` | 全局共享业务状态（Pinia） | 与 HTTP 细节耦合（由 composables 处理） |
+| `src/composables/` | 可复用的有状态逻辑（请求、下载、上传、特性开关） | 模板渲染 |
+| `src/services/` | 所有 HTTP 请求的出口（axios 实例 + 封装） | 组件耦合、直接操作 DOM |
+| `src/components/ui/` | 纯展示组件 | store/composable/API/router 访问 |
+| `src/components/features/` | 有状态容器组件 | 无（允许一切下层能力） |
+| `src/views/` | 路由级页面：组合 features + layouts | 直接操作 DOM、内联大段业务逻辑 |
+| `src/layouts/` | 页面壳：布局结构 + RouterView | 业务逻辑 |
+| `src/types/` | 跨模块共享类型 + unplugin 生成声明（auto-imports/components） | 运行时实现 |
+| `config/` | 全部工具链配置 | 应用运行时代码 |
+| `tests/` | 测试套件 | — |
+
+---
+
+## 3. 技术栈与工具链
+
+工具链配置统一收拢在 `config/` 目录，根目录只保留 `vite.config.ts` 与 `tsconfig.json` 两个全局入口。
+
+| 配置 | 位置 | 要点 |
+| ------ | ------ | ------ |
+| TypeScript 浏览器端 | `config/tsconfig.app.json` | `types: []` 禁止 Node 类型泄露；`paths: { "@/*": ["../src/*"] }`；`target: ESNext` |
+| TypeScript Node 端 | `config/tsconfig.node.json` | 仅覆盖 `vite.config.ts` 与 `config/`；`types: ["node"]`、`lib: ["ESNext"]`（不含 DOM） |
+| TS 解决方案根 | `tsconfig.json` | `files: []` + project references 指向 `config/` 下两个子配置；`pnpm run type-check` = `vue-tsc -b` |
+| Vite | `vite.config.ts` | 函数式 `defineConfig(({ mode }) => ...)`；`root: './'`；`base` 经 `normalizeBaseUrl` 规范化；legacy 插件仅非 development 加载 |
+| unplugin | `vite.config.ts` | `unplugin-auto-import`：vue/vue-router/pinia 的 API 免 import；`unplugin-vue-components`：`src/components/` 下组件免 import 自动注册；生成的 dts 在 `src/types/`，ESLint 全局在 `.eslintrc-auto-import.json` |
+| PostCSS | `config/postcss.config.mjs` | 用 `.mjs` 避免 ts-node 依赖；默认最小配置（按需加插件） |
+| Vitest | `config/vitest.config.ts` | 独立配置（vite.config.ts 为回调形式，无法 `mergeConfig`）；`environment: 'jsdom'`、`globals: true` |
+| ESLint | `config/eslint.config.mjs` | flat config（ESLint 9+）；`globals.browser` 声明浏览器全局；Vue SFC 用 TS parser |
+| 编辑器 | `.editorconfig` + `.vscode/extensions.json` | 统一缩进/换行；推荐 Volar、ESLint、EditorConfig |
+| pnpm | `.npmrc` | `strict-peer-dependencies=true`、`shamefully-hoist=false`；`packageManager` 锁定版本 |
+
+**双 tsconfig 隔离效果**（`config/tsconfig.app.json` vs `config/tsconfig.node.json`）：
+
+| 代码位置 | 可用类型 | `process.env` | `document` |
+| --------- | --------- | ------------ | ----------- |
+| `vite.config.ts`、`config/` | Node | ✅ | ❌ 类型错误 |
+| `src/**`（浏览器代码） | DOM | ❌ 类型错误 | ✅ |
+
+---
+
+## 4. 应用启动流程
+
+### 页面加载顺序（`index.html`）
+
+```text
+<head>
+  1. 构建时插件注入 <script>  → 设置 window.__APP_CONFIG__ 默认值（injectTo: 'head-prepend'）
+  2. <script src="/config.js"> → 运行时合并覆盖特定字段（public/，运维可改）
+  3. <script type="module" src="/src/main.ts"> → 应用启动
+```
+
+三层脚本按序执行，保证配置在任何业务代码之前就绪。
+
+### 应用挂载（`src/main.ts`）
+
+```typescript
+import { createApp } from 'vue'
+import App from './App.vue'
+import router from './router'
+import pinia from './stores'
+import '@/assets/styles/main.css'
+
+const app = createApp(App)
+app.use(router)
+app.use(pinia)
+
+// 全局错误处理：捕获组件内未处理的错误（生产可接入 Sentry 等）
+app.config.errorHandler = (err, _instance, info) => {
+  console.error('[Global Error]', err, info)
+}
+
+app.mount('#app')
+```
+
+要点：
+
+- **安装顺序**：router → pinia → mount；样式在入口统一导入，确保所有页面共享设计令牌与 reset。
+- **全局错误处理**：`app.config.errorHandler` 捕获组件渲染/事件/生命周期中的错误，防止静默吞掉。仅覆盖 Vue 内部错误，`window.onerror` 需另接。
+
+---
+
+## 5. 核心机制
+
+### 5.1 运行时配置（三层合并）
+
+配置目标是让 **构建产物与运行时配置解耦**：构建时注入默认值，部署后运维可免打包改值。
+
+```text
+.env / .env.[mode]                    public/config.js（运维可改）
+         │                                      │
+    loadEnv(mode)                          Object.assign
+         │                                      │
+         ▼                                      ▼
+  Vite 插件 transformIndexHtml          <script src="/config.js">
+  注入 <script> 设置默认值              合并覆盖特定字段
+         │                                      │
+         └──────────────┬───────────────────────┘
+                        ▼
+              window.__APP_CONFIG__（完整 AppConfig）
+                        │
+                        ▼
+                 useAppConfig() composable
+```
+
+| 层 | 位置 | 机制 | 用途 |
+| ---- | ------ | ------ | ------ |
+| L1 默认值 | `.env` / `.env.[mode]` + `config/plugins/inject-app-config.ts` | 构建时 `loadEnv` 读取 `VITE_APP_CONFIG_*`，注入 `<head>` 内联 `<script>` | 环境相关默认值，随构建产物 |
+| L2 运行时覆盖 | `public/config.js` | `Object.assign(window.__APP_CONFIG__, {...})` 只覆盖需改字段 | 部署后免打包改值 |
+| L3 响应式访问 | `src/composables/useAppConfig.ts` | `reactive` + `readonly` + 单例 | 组件内类型安全地读取配置 |
+
+L2 的 `public/config.js` 示例（按需覆盖字段；`apiBaseUrl` 请替换为实际后端地址）：
+
+```javascript
+// public/config.js
+// 仅覆盖需要改的字段，其余从构建时注入的默认值继承；运维可直接修改，无需重新打包
+;(function () {
+  Object.assign(window.__APP_CONFIG__, {
+    apiBaseUrl: '{{apiBaseUrl}}',
+    // timeout: 20000,           // 按需覆盖
+    // featureFlags: { ... },    // 按需覆盖
+  })
+})()
+```
+
+`VITE_APP_CONFIG_*` 环境变量 → `AppConfig` 字段映射：
+
+| 环境变量 | 字段 | 类型转换 |
+| --------- | ------ | --------- |
+| `VITE_APP_CONFIG_API_BASE_URL` | `apiBaseUrl` | 直接使用 |
+| `VITE_APP_CONFIG_TIMEOUT` | `timeout` | `Number()` |
+| `VITE_APP_CONFIG_APP_VERSION` | `appVersion` | 直接使用 |
+| `VITE_APP_CONFIG_ENVIRONMENT` | `environment` | 联合类型断言 |
+| `VITE_APP_CONFIG_FEATURE_FLAGS` | `featureFlags` | `JSON.parse()` |
+
+类型定义在 `src/types/app-config.d.ts`（`AppConfig` 接口 + `Window.__APP_CONFIG__` 全局增强）。`export {}` 标记为 ES 模块，防止 `declare global` 与其他全局声明冲突。
+
+**约定**：开发环境走 `.env.development`（localhost），生产走 `.env.production` + `public/config.js` 覆盖；`useAppConfig()` 返回只读引用，组件不可直接修改。
+
+### 5.2 请求层与错误处理
+
+调用链（全部 HTTP 出口在 `src/services/`）：
+
+```text
+组件 / composable ──► src/services/api.ts (get/post/put/patch/del 封装)
+                          │
+                          ▼
+                   src/services/http.ts (axios 实例 + 拦截器)
+                          │  ├─ 请求拦截器：注入鉴权 header 等（占位）
+                          │  └─ 响应拦截器：解包 ApiResponse、Blob 直通、错误归一
+                          ▼
+                       后端 API
+```
+
+**通用响应结构**：
+
+```typescript
+interface ApiResponse<T = unknown> {
+  code: string    // SUCCESS_CODE = '00000' 表示成功
+  data: T
+  msg: string
+}
+```
+
+**错误分层策略**：
+
+| 异常类型 | 处理层 | 职责 |
+| --------- | -------- | ------ |
+| 请求超时（`ECONNABORTED`） | 响应拦截器（全局占位） | 全局提示，reject 透传 |
+| 401 鉴权异常 | 响应拦截器（全局占位） | 跳转登录页，reject 透传 |
+| 业务异常（`BusinessError`） | 局部（`error` ref） | 组件内展示，`watch(error)` 响应 |
+| 其他网络异常 | 局部（`error` ref） | 组件内展示 |
+
+拦截器完成全局动作后**仍然 reject**，局部 `error` ref 也能接收。`RequestOptions` 仅保留 `timeout`（单请求覆盖），错误统一走 `error` ref 返回，不再有 `onError`/`onTimeout` 回调。
+
+**Blob 特殊处理**：响应拦截器中 `response.data instanceof Blob` 时直接返回完整 `AxiosResponse`（含 headers），跳过 `ApiResponse` 解包——供 `useDownload` 读取 `Content-Disposition` 获取文件名。
+
+**composables 一览**：
+
+| Composable | 职责 |
+| ------------ | ------ |
+| `useRequest<T>(url, options)` | 通用请求，GET/POST/PUT/DELETE/PATCH，返回 `{ data, loading, error, execute, refresh }` |
+| `useFetchTable<T>(url, options)` | 表格请求，snake_case 分页（`page`/`page_size`），返回 `{ loading, data, total, error, pagination, refresh }` |
+| `useDownload(url)` | 文件下载，单请求获取 Blob + Content-Disposition，Firefox 兼容 |
+| `useUpload(url)` | 文件上传，FormData + 进度，返回 `{ loading, progress, error, upload }` |
+
+### 5.3 路由
+
+- **实例化**：`createRouter` + `createWebHistory(import.meta.env.BASE_URL)`，默认提供 `scrollBehavior`（滚动复位）。
+- **定义**：`src/router/routes.ts` 导出 `RouteRecordRaw[]`，默认含一个 `DefaultLayout` 父路由（嵌套首页）+ 404 兜底路由。按需添加嵌套路由、鉴权路由（`meta: { requiresAuth: true }`）、自定义布局。
+- **守卫**：`guards.ts` 通过 `setupGuards(router)` 挂载 `beforeEach`/`afterEach`；`document.title` 由站点名 + 路由 meta.title 拼接。
+
+**嵌套路由渲染**（嵌套路由经多层 `<RouterView>` 逐级渲染）：
+
+```text
+URL: /dashboard/settings
+       │
+       ▼
+DefaultLayout.vue          ← 匹配 path: '/'（父级）
+  └── <RouterView />       ← 渲染子路由
+        └── ParentView.vue       ← 匹配 path: 'dashboard'
+              ├── <RouterView />
+              │     └── ChildView.vue  ← 匹配 path: 'settings'
+```
+
+**子目录部署**：构建时设置 `BASE_URL=/app/`，`createWebHistory('/app/')` 生成干净 URL，所有 `<router-link>` 自动前缀 `/app/`，静态资源路径自动解析。**无需改任何代码**即可在 `/`、`/app/`、`/v2/` 间切换。`vite.config.ts` 的 `normalizeBaseUrl` 保证 `base` 以 `/` 开头结尾（`app` → `/app/`）。
+
+> 注意：`createWebHistory` 需要服务端 fallback——所有路径返回 `index.html`（否则刷新子路径 404）。
+
+### 5.4 状态管理（Pinia）
+
+- `src/stores/index.ts` 导出 `createPinia()` 实例，在 `main.ts` 中 `app.use(pinia)`。
+- 业务 store 统一放 `src/stores/modules/`，按业务域拆分。
+- 只管理**全局共享**状态；页面局部状态用组件本地状态即可。
+
+### 5.5 组件组织（ui / features 分层）
+
+| 目录 | 规则 | 允许 | 禁止 |
+| ------ | ------ | ------ | ------ |
+| `components/ui/` | 无状态、纯展示 | props、emits、computed、watch、slots | `useStore()`、`useRouter()`、`fetch()`、`import.meta.env` |
+| `components/features/` | 有状态容器 | 以上全部 + stores、composables、API、router | 无 |
+| `views/` | 路由级页面 | 组合 features 组件 + layouts | 直接操作 DOM |
+| `layouts/` | 页面壳 | 读取 router 状态、提供布局结构 | 业务逻辑 |
+
+**自动注册**：`src/components/`（ui/ 与 features/）下组件由 `unplugin-vue-components` 自动注册，模板中直接使用组件名即可、无需 import。如需按需引入 UI 组件库，在 `vite.config.ts` 的 `VueComponents()` 中挂对应 resolver（配置中已留注释示例）。
+
+---
+
+## 6. 开发约束
+
+### 6.1 类型定义约定
+
+1. **所有类型定义放在单独的 `.d.ts` 文件**，不内联在 `.ts` 实现文件里；
+2. **跨模块共享**的类型 → `src/types/*.d.ts`；
+3. **模块内部使用**的类型 → 各模块自己的 `types.d.ts`；
+4. **类型定义文件一律以 `.d.ts` 结尾**；
+5. unplugin 生成的 `auto-imports.d.ts` / `components.d.ts` 提交进仓库、**勿手动编辑**，`dev`/`build` 时自动重新生成。
+
+**归属判断**：
+
+| 归属 | 位置 | 依据 |
+| --- | --- | --- |
+| 跨模块共享 | `src/types/xxx.d.ts` | 被两个及以上模块引用 |
+| 模块内部 | `src/xxx/types.d.ts` | 仅本模块（含模块内互相引用）使用 |
+
+**运行时产物处理**：`.d.ts` 只承载类型声明，不能包含实现。运行时常量/class 归入对应模块的 `.ts` 文件（如 `src/services/errors.ts` 的 `SUCCESS_CODE`、`BusinessError`）。
+
+**现有类型布局**：
+
+```text
+src/types/api.d.ts          共享：ApiResponse、PageResult、PageParams、RequestOptions
+src/types/axios.d.ts        共享：axios 模块增强（实例方法返回 Promise<T>）
+src/types/app-config.d.ts   共享：AppConfig + window.__APP_CONFIG__
+src/types/env.d.ts          共享：vite/client 引用 + *.vue 模块声明
+src/services/types.d.ts     服务层内部：CombinedConfig
+src/composables/types.d.ts  composables 内部：Method、UseRequestOptions、UseRequestReturn
+```
+
+**约束**：实现文件（`.ts`/`.vue`）内不声明 `type`/`interface`，统一 `import type` 引用；模块的 `types.d.ts` 仅限本模块目录内使用，禁止被其他模块直接引用。
+
+### 6.2 组件分层规则
+
+- 新建组件先判断归属（`ui` 无状态 vs `features` 有状态），见 §5.5；
+- `ui` 组件保持纯净：props 进、emits 出，便于独立测试与复用；
+- `views` 不直接操作 DOM，不内联大段业务逻辑（抽到 features/composables）。
+
+### 6.3 依赖方向
+
+- 禁止反向依赖（`services` → 组件、`composables` → `stores` 除非必要）；
+- 请求一律经 `src/services/`，组件内不直接 `axios.get`。
+
+---
+
+## 7. 关键设计决策
+
+| 决策 | 理由 | 权衡 |
+| ------ | ------ | ------ |
+| 双 tsconfig + project references | 防止 Node 类型泄露到浏览器代码；`vue-tsc -b` 并行类型检查 | 配置复杂度增加；路径需注意 `config/` 子目录 `../` 前缀 |
+| `config/` 统一管理工具链配置 | 根目录干净，仅保留全局入口；新增工具链有明确归属 | 部分工具（Vite）需显式指向配置路径 |
+| `ESNext` target + legacy 插件 | TS 不做降级，输出最新语法；旧浏览器兼容完全由构建层兜底 | 必须配置 legacy 插件，否则旧浏览器无法运行 |
+| 运行时配置三层合并（构建注入 + config.js 覆盖） | 配置可脱离构建产物变更；CDN 可按环境注入 | 多一次页面加载的 HTTP 请求；`head-prepend` 保证执行顺序 |
+| `normalizeBaseUrl()` 自动规范化 | 防止漏写 `/` 前缀/后缀导致资源 404 | 隐蔽配置错误，开发人员可能不知写错 |
+| 函数式 `defineConfig` + mode 判断 | 开发反馈循环快（无 legacy）；生产获完整优化 | 本地测 legacy 行为需跑 production 构建 |
+| `root: './'` 项目根目录 | `index.html`/`public/` 在根，符合传统前端项目直觉 | 无 |
+| Vitest 独立配置 | vite.config.ts 回调形式不支持 `mergeConfig` | 需手动同步 alias 与插件 |
+| PostCSS 用 `.mjs` | 避免 ts-node 依赖 | 配置内无 TS 类型检查 |
+| `ui/` vs `features/` 分层 | 清晰分离关注点；UI 组件可独立测试复用 | 需团队纪律维护边界 |
+| 错误分层：全局拦截器 + 局部 `error` ref | 超时/401 全局处理；业务异常局部展示 | `RequestOptions` 仅保留 `timeout`，移除回调 |
+| 拦截器 Blob 特殊处理 | `useDownload` 需从同一响应取 headers | 拦截器需 `instanceof Blob` 分支 |
+| `app.config.errorHandler` 全局错误处理 | 捕获组件内未处理错误 | 仅覆盖 Vue 内部错误，`window.onerror` 另接 |
+| `createWebHistory` 非 hash 模式 | 干净 URL、SEO 友好、支持服务端重定向 | 需服务端 fallback（所有路径返回 index.html） |
+
+---
+
+## 8. 快速定位指南
+
+> 面向 AI Agent / 开发人员："要改 X，应该动哪里"。
+
+| 目标 | 位置 |
+| ------ | ------ |
+| 改请求超时/鉴权/错误全局处理 | `src/services/http.ts`（axios 拦截器） |
+| 新增后端接口封装 | `src/services/api.ts` + 对应类型（`src/types/api.d.ts`） |
+| 新增通用请求逻辑 | `src/composables/useRequest.ts` 等 |
+| 改/加运行时配置项 | `.env*` → `src/types/app-config.d.ts` → `public/config.js` |
+| 新增路由 / 嵌套路由 / 布局 | `src/router/routes.ts` |
+| 加导航守卫 / 页面标题 | `src/router/guards.ts` |
+| 新增全局状态 | `src/stores/modules/` |
+| 新增跨模块类型 | `src/types/*.d.ts` |
+| 新增模块内部类型 | 该模块的 `types.d.ts` |
+| 新增展示组件 / 容器组件 | `src/components/ui/` / `src/components/features/` |
+| 新增页面 / 布局 | `src/views/` / `src/layouts/` |
+| 改构建 / 部署路径 | `vite.config.ts`（`base`）、`tsconfig.json`、`config/` |
+| 配置 API 自动导入 / 组件自动注册 | `vite.config.ts`（AutoImport / VueComponents） |
+| 改 lint / 测试 / 样式配置 | `config/eslint.config.mjs` / `config/vitest.config.ts` / `config/postcss.config.mjs` |
+| 改全局样式 / 设计令牌 | `src/assets/styles/` |

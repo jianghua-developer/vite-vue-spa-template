@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "name": "vite-vue-spa",
+  "displayName": "Vite + Vue 3 + TypeScript SPA",
+  "description": "Vite + Vue 3 + TypeScript SPA 底座模板",
+  "packageManager": "pnpm",
+  "devCommand": "pnpm run dev",
+  "placeholders": {
+    "name": {
+      "label": "项目名",
+      "type": "name",
+      "required": true,
+      "deriveFrom": "dirName"
+    },
+    "title": {
+      "label": "页面标题",
+      "type": "title",
+      "required": false,
+      "deriveFrom": "name"
+    },
+    "description": {
+      "label": "项目描述",
+      "type": "text",
+      "required": true
+    },
+    "apiBaseUrl": {
+      "label": "API 基础地址",
+      "type": "url",
+      "required": true,
+      "initial": "/api"
+    }
+  },
+  "placeholderSyntax": {
+    "default": [
+      "{{",
+      "}}"
+    ],
+    ".vue": [
+      "##",
+      "##"
+    ],
+    ".tsx": [
+      "##",
+      "##"
+    ],
+    ".jsx": [
+      "##",
+      "##"
+    ]
+  },
+  "textExtensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".html",
+    ".json",
+    ".css",
+    ".scss",
+    ".less",
+    ".md",
+    ".yml",
+    ".yaml",
+    ".toml",
+    ".svg",
+    ".txt",
+    ".vue"
+  ],
+  "textFiles": [
+    ".env",
+    ".env.development",
+    ".env.production",
+    ".npmrc",
+    ".editorconfig",
+    ".gitignore"
+  ],
+  "copyExcludes": [
+    "node_modules",
+    ".git",
+    "dist",
+    ".env.local",
+    ".DS_Store"
+  ],
+  "globExcludes": [
+    ".local",
+    ".tsbuildinfo"
+  ],
+  "renameFiles": {
+    ".gitignore.template": ".gitignore"
+  }
+}

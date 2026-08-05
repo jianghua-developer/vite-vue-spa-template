@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "..",
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "../vite.config.ts",
+    "./*.ts",
+    "./plugins/**/*.ts",
+    "../src/types/env.d.ts",
+    "../src/types/global.d.ts",
+    "../src/types/app-config.d.ts"
+  ]
+}
