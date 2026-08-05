@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/jianghua-developer/frontend-template-copier/main/schema/.scaffoldrc.schema.json",
   "format": 1,
   "name": "vite-vue-spa",
   "displayName": "Vite + Vue 3 + TypeScript SPA",
