@@ -91,6 +91,10 @@ export default defineConfig(({ mode }): UserConfig => {
     server: {
       port: 5173,
       strictPort: false,
+      proxy: {
+        // 开发环境代理示例：接口与前端分离部署时启用
+        // '/api': { target: 'http://localhost:8080', changeOrigin: true },
+      },
     },
   }
 })

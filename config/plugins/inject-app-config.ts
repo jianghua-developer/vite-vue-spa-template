@@ -33,7 +33,8 @@ export function injectAppConfig(mode: string): Plugin {
           {
             tag: 'script',
             attrs: {},
-            children: `window.__APP_CONFIG__ = ${JSON.stringify(config)}`,
+            // 转义 `<` 防止值内容意外闭合 script 标签（与 vite-react-spa-template 的 appConfigPlugin 一致）
+            children: `window.__APP_CONFIG__ = ${JSON.stringify(config).replace(/</g, '\\u003c')}`,
             injectTo: 'head-prepend',
           },
         ]

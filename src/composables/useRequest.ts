@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { get, post, put, del, patch } from '@/services/api'
-import type { RequestOptions } from '@/types/api'
+import type { CombinedConfig } from '@/services/types'
 import type { UseRequestOptions, UseRequestReturn } from './types'
 
 export function useRequest<T>(
@@ -15,7 +15,11 @@ export function useRequest<T>(
     loading.value = true
     error.value = null
     try {
-      const opts: RequestOptions = { timeout: options?.timeout }
+      const opts: CombinedConfig = {
+        timeout: options?.timeout,
+        authRequired: options?.authRequired,
+        signal: options?.signal,
+      }
       switch (options?.method ?? 'GET') {
         case 'GET':
           data.value = await get<T>(url, payload as object, opts)

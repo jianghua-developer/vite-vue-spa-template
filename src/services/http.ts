@@ -6,27 +6,50 @@ import { SUCCESS_CODE, BusinessError } from '@/services/errors'
 import type { ApiResponse } from '@/types/api'
 
 const instance: AxiosInstance = axios.create({
-  baseURL: window.__APP_CONFIG__?.apiBaseUrl,
+  // 去尾部斜杠，避免与请求路径拼接时出现双斜杠（如 apiBaseUrl 配成 'https://x/api/'）
+  baseURL: window.__APP_CONFIG__?.apiBaseUrl.replace(/\/+$/, ''),
   timeout: window.__APP_CONFIG__?.timeout ?? 15000,
   headers: { 'Content-Type': 'application/json' },
 })
 
 // 请求拦截器
 instance.interceptors.request.use((config) => {
-  // ┌──────────────────────────────────────────────────────────┐
-  // │  鉴权逻辑占位 - 开发人员在此注入 Authorization 头          │
-  // │  示例：                                                    │
-  // │  const token = localStorage.getItem('token')               │
-  // │  if (token) config.headers.Authorization = `Bearer ${token}`│
-  // └──────────────────────────────────────────────────────────┘
-
   // 应用单请求 timeout 覆盖
   if (config._options?.timeout) {
     config.timeout = config._options.timeout
   }
 
+  // 端点级鉴权（apiPath 登记 authRequired: true 的端点触发）
+  // ┌──────────────────────────────────────────────────────────┐
+  // │  示例：从鉴权存储读取 token，注入 Authorization 头          │
+  // │  const token = getToken()                                │
+  // │  if (token) config.headers.Authorization = `Bearer ${token}`│
+  // └──────────────────────────────────────────────────────────┘
+  if (config._options?.authRequired) {
+    // TODO: 注入鉴权凭证
+  }
+
   return config
 })
+
+/** 判断是否为约定响应包络 { code, data, msg }（以 code 为 string 作为标记） */
+function isApiResponse(value: unknown): value is ApiResponse<unknown> {
+  return typeof value === 'object' && value !== null && typeof (value as { code?: unknown }).code === 'string'
+}
+
+/**
+ * 解包约定响应包络 { code, data, msg }：
+ * - code === SUCCESS_CODE → 返回 data（业务数据）
+ * - code 非成功 → 抛业务 BusinessError（含 code / msg / HTTP status / 原始包络）
+ * - 非包络（文件流 / 原始数据）→ 原样返回
+ *
+ * Blob 响应由拦截器在调用本函数前直通（保留完整 response 供 useDownload 读取 headers）。
+ */
+export function unwrapEnvelope<T>(body: unknown, status?: number): T {
+  if (!isApiResponse(body)) return body as T
+  if (body.code === SUCCESS_CODE) return body.data as T
+  throw new BusinessError(body.code, body.msg, status, body)
+}
 
 // 响应拦截器
 instance.interceptors.response.use(
@@ -36,16 +59,7 @@ instance.interceptors.response.use(
       return response
     }
 
-    const body = response.data as ApiResponse
-
-    // ┌──────────────────────────────────────────────────────────┐
-    // │  鉴权逻辑占位 - 开发人员在此处理 401/token 过期等          │
-    // │  示例：                                                    │
-    // │  if (response.status === 401) { router.push('/login') }   │
-    // └──────────────────────────────────────────────────────────┘
-
-    if (body.code === SUCCESS_CODE) return body.data as unknown as AxiosResponse
-    throw new BusinessError(body.code, body.msg)
+    return unwrapEnvelope(response.data, response.status) as unknown as AxiosResponse
   },
   (error) => {
     // ┌─ 全局：超时处理 ──────────────────────────────────────┐
@@ -54,9 +68,10 @@ instance.interceptors.response.use(
     // │  }                                                       │
     // └──────────────────────────────────────────────────────────┘
 
-    // ┌─ 全局：鉴权处理 ──────────────────────────────────────┐
+    // ┌─ 全局：鉴权处理（401 无感刷新可配合 src/utils/lockGate）─┐
     // │  if (error.response?.status === 401) {                  │
-    // │    router.push('/login')                                │
+    // │    // 用 lockGate 单飞刷新 token，成功则重放原请求        │
+    // │    // 刷新失败则跳转登录页                               │
     // │  }                                                       │
     // └──────────────────────────────────────────────────────────┘
 

@@ -1,15 +1,10 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
     "rootDir": "..",
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
     "lib": ["ESNext"],
-    "types": ["node"],
-    "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true
+    "types": ["node"]
   },
   "include": [
     "../vite.config.ts",
@@ -18,5 +13,6 @@
     "../src/types/env.d.ts",
     "../src/types/global.d.ts",
     "../src/types/app-config.d.ts"
-  ]
+  ],
+  "exclude": ["vitest.setup.ts"]
 }

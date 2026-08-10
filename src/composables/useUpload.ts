@@ -8,6 +8,7 @@ export function useUpload(url: string) {
   async function upload(
     file: File,
     extra?: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<unknown> {
     loading.value = true
     progress.value = 0
@@ -23,6 +24,7 @@ export function useUpload(url: string) {
 
     try {
       return await http.post(url, form, {
+        signal,
         onUploadProgress: (e) => {
           progress.value = Math.round((e.loaded * 100) / (e.total ?? 1))
         },

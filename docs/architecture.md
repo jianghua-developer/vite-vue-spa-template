@@ -113,9 +113,10 @@
 │   │   └── useUpload.ts                    # 文件上传（进度 + error ref）
 │   │
 │   ├── services/                           # API 层，基于 axios
-│   │   ├── types.d.ts                      # 模块内部类型（CombinedConfig）
-│   │   ├── api.ts                          # get/post/put/patch/del 封装
-│   │   ├── http.ts                         # axios 实例 + 拦截器（鉴权/超时占位 + Blob 处理）
+│   │   ├── types.d.ts                      # 模块内部类型（CombinedConfig、ApiEndpoint 等）
+│   │   ├── api.ts                          # request / requestEndpoint + get/post/put/patch/del 便捷方法
+│   │   ├── apiPath.ts                      # 端点注册表（endpoint 助手 + apiPath 集中登记）
+│   │   ├── http.ts                         # axios 实例 + 拦截器（鉴权/超时占位 + unwrapEnvelope 解包）
 │   │   └── errors.ts                       # 运行时值：SUCCESS_CODE + BusinessError
 │   │
 │   ├── components/                         # Vue SFC 组件
@@ -186,13 +187,14 @@
 
 | 配置 | 位置 | 要点 |
 | ------ | ------ | ------ |
-| TypeScript 浏览器端 | `config/tsconfig.app.json` | `types: []` 禁止 Node 类型泄露；`paths: { "@/*": ["../src/*"] }`；`target: ESNext` |
-| TypeScript Node 端 | `config/tsconfig.node.json` | 仅覆盖 `vite.config.ts` 与 `config/`；`types: ["node"]`、`lib: ["ESNext"]`（不含 DOM） |
+| TypeScript 公共 | `config/tsconfig.base.json` | 共享严格项：`strict`、`verbatimModuleSyntax`、`noUnusedLocals`、`noUnusedParameters`、`noFallthroughCasesInSwitch`、`isolatedModules` 等 |
+| TypeScript 浏览器端 | `config/tsconfig.app.json` | extends base；`types: []` 禁止 Node 类型泄露；`paths: { "@/*": ["../src/*"] }`；含 DOM |
+| TypeScript Node 端 | `config/tsconfig.node.json` | extends base；仅覆盖 `vite.config.ts` 与 `config/`；`types: ["node"]`、`lib: ["ESNext"]`（不含 DOM） |
 | TS 解决方案根 | `tsconfig.json` | `files: []` + project references 指向 `config/` 下两个子配置；`pnpm run type-check` = `vue-tsc -b` |
 | Vite | `vite.config.ts` | 函数式 `defineConfig(({ mode }) => ...)`；`root: './'`；`base` 经 `normalizeBaseUrl` 规范化；legacy 插件仅非 development 加载 |
 | unplugin | `vite.config.ts` | `unplugin-auto-import`：vue/vue-router/pinia 的 API 免 import；`unplugin-vue-components`：`src/components/` 下组件免 import 自动注册；生成的 dts 在 `src/types/`，ESLint 全局在 `.eslintrc-auto-import.json` |
 | PostCSS | `config/postcss.config.mjs` | 用 `.mjs` 避免 ts-node 依赖；默认最小配置（按需加插件） |
-| Vitest | `config/vitest.config.ts` | 独立配置（vite.config.ts 为回调形式，无法 `mergeConfig`）；`environment: 'jsdom'`、`globals: true` |
+| Vitest | `config/vitest.config.ts` | 独立配置（vite.config.ts 为回调形式，无法 `mergeConfig`）；`environment: 'jsdom'`、`globals: true`、`setupFiles`（`vitest.setup.ts`）+ v8 覆盖率（`pnpm test:coverage`） |
 | ESLint | `config/eslint.config.mjs` | flat config（ESLint 9+）；`globals.browser` 声明浏览器全局；Vue SFC 用 TS parser |
 | 编辑器 | `.editorconfig` + `.vscode/extensions.json` | 统一缩进/换行；推荐 Volar、ESLint、EditorConfig |
 | pnpm | `.npmrc` | `strict-peer-dependencies=true`、`shamefully-hoist=false`；`packageManager` 锁定版本 |
@@ -309,12 +311,12 @@ L2 的 `public/config.js` 示例（按需覆盖字段；`apiBaseUrl` 请替换�
 调用链（全部 HTTP 出口在 `src/services/`）：
 
 ```text
-组件 / composable ──► src/services/api.ts (get/post/put/patch/del 封装)
+组件 / composable ──► src/services/api.ts (request / requestEndpoint 统一入口)
                           │
                           ▼
                    src/services/http.ts (axios 实例 + 拦截器)
-                          │  ├─ 请求拦截器：注入鉴权 header 等（占位）
-                          │  └─ 响应拦截器：解包 ApiResponse、Blob 直通、错误归一
+                          │  ├─ 请求拦截器：端点级鉴权注入（authRequired 占位）+ timeout 覆盖
+                          │  └─ 响应拦截器：unwrapEnvelope 解包、Blob/非包络直通、错误归一
                           ▼
                        后端 API
 ```
@@ -335,12 +337,14 @@ interface ApiResponse<T = unknown> {
 | --------- | -------- | ------ |
 | 请求超时（`ECONNABORTED`） | 响应拦截器（全局占位） | 全局提示，reject 透传 |
 | 401 鉴权异常 | 响应拦截器（全局占位） | 跳转登录页，reject 透传 |
-| 业务异常（`BusinessError`） | 局部（`error` ref） | 组件内展示，`watch(error)` 响应 |
+| 业务异常（`BusinessError`，含 `code`/`status`/`data`） | 局部（`error` ref） | 组件内展示，`watch(error)` 响应 |
 | 其他网络异常 | 局部（`error` ref） | 组件内展示 |
 
-拦截器完成全局动作后**仍然 reject**，局部 `error` ref 也能接收。`RequestOptions` 仅保留 `timeout`（单请求覆盖），错误统一走 `error` ref 返回，不再有 `onError`/`onTimeout` 回调。
+拦截器完成全局动作后**仍然 reject**，局部 `error` ref 也能接收。`RequestOptions` 承载 `timeout`（单请求覆盖）与 `authRequired`（端点级鉴权标记），`signal`（取消信号）走原生 axios 配置；错误统一走 `error` ref 返回，不再有 `onError`/`onTimeout` 回调。
 
-**Blob 特殊处理**：响应拦截器中 `response.data instanceof Blob` 时直接返回完整 `AxiosResponse`（含 headers），跳过 `ApiResponse` 解包——供 `useDownload` 读取 `Content-Disposition` 获取文件名。
+**非包络透传**：响应经 `unwrapEnvelope` 处理——`response.data instanceof Blob` 时直接返回完整 `AxiosResponse`（含 headers，供 `useDownload` 读取 `Content-Disposition`）；无业务 `code` 字段的原始数据（如文件流、非包络 JSON）原样透传，不做解包；仅 `code` 为 string 的包络才判定为 `ApiResponse` 并解包/抛错。
+
+**端点注册表（apiPath）**：服务端接口推荐在 `src/services/apiPath.ts` 集中登记——`endpoint<Req, Res>(path, method, { authRequired })` 编译期绑定入出参 DTO 与鉴权标记，`requestEndpoint` 按端点调用并自动推导返回类型。新增接口 = 登记一条 + 包装一层，路径/方法/鉴权不散落在调用方。
 
 **composables 一览**：
 
@@ -419,7 +423,7 @@ src/types/api.d.ts          共享：ApiResponse、PageResult、PageParams、Req
 src/types/axios.d.ts        共享：axios 模块增强（实例方法返回 Promise<T>）
 src/types/app-config.d.ts   共享：AppConfig + window.__APP_CONFIG__
 src/types/env.d.ts          共享：vite/client 引用 + *.vue 模块声明
-src/services/types.d.ts     服务层内部：CombinedConfig
+src/services/types.d.ts     服务层内部：CombinedConfig、HttpMethod、ApiEndpoint、EndpointRequest、EndpointResponse
 src/composables/types.d.ts  composables 内部：Method、UseRequestOptions、UseRequestReturn
 ```
 
@@ -457,6 +461,41 @@ src/composables/types.d.ts  composables 内部：Method、UseRequestOptions、Us
 | `app.config.errorHandler` 全局错误处理 | 捕获组件内未处理错误 | 仅覆盖 Vue 内部错误，`window.onerror` 另接 |
 | `createWebHistory` 非 hash 模式 | 干净 URL、SEO 友好、支持服务端重定向 | 需服务端 fallback（所有路径返回 index.html） |
 
+### 7.1 服务端数据层选型：不内置 vue-query（ADR-01）
+
+> 状态：已定（2026-08）。本决策记录"本项目为何不内置服务端状态库、何时才引入"，供开发人员与 AI 代理理解选型，避免项目一上来就背上重依赖。
+
+**结论**：本项目**不引入** `@tanstack/vue-query`。服务端数据默认走 composables（`useRequest` / `useFetchTable`），共享/去重场景用薄缓存（Pinia + lockGate）补充；出现下文"推翻此决策的信号"时再引入。
+
+**背景**：React 生态因并发调度的 render 可重启压力（官方明确"不保证 render 只执行一次"），数据请求被迫迁出 render、惯用查询库（如 TanStack Query）接管生命周期与缓存；Vue 的 `setup` 每实例只执行一次、render 确定性，无此压力，纯 composables 默认稳定，故本项目（Vue SPA）不默认内置查询库。
+
+**决策依据**：
+
+1. **重发按类别选工具**（两框架通用）：
+
+   | 类别 | 例子 | 工具 |
+   | --- | --- | --- |
+   | 交互驱动 | 连点按钮、输入防抖搜索 | 限流 / 防抖（简单原语足够） |
+   | 挂载驱动 | 跨组件同数据、组件重挂载重拉 | 缓存层 |
+   | 一致性驱动 | 数据失效同步、轮询刷新 | 缓存层 |
+
+   本项目最常见的重发是**交互驱动**；后两类是**项目规模**问题，初始阶段用不到。
+2. **协调原语已内置**：`src/utils/lockGate`（`createLockGate` + `createConcurrencyLimiter`）提供单飞、突发合并、abort 剪枝、并发上限。配合薄缓存层（Pinia store 存数据 + lockGate 单飞取数 + `invalidate(key)` 失效）可覆盖多数挂载/突发型需求，**零新依赖**。
+3. **薄缓存边界**：缓存层保持"flat key + 单飞 + 失效"即够用；一旦需要 staleness 策略、多实体失效图、重试、乐观更新，手写层会膨胀成 query-client 的劣化克隆——届时用库反而更简单（硬部分外包 + devtools）。
+4. **升级路径已铺好**：请求层为 `requestEndpoint`（apiPath 注册表）+ `signal` 透传，已是 queryFn 直插形态；将来引入 vue-query 只需把 composable 换成 `useQuery`，**请求层不动**。
+
+**代价（本决策的权衡）**：
+
+- 无缓存 → 组件重挂载会重拉、跨组件相同数据会重复请求（协调类可借 lockGate 缓解）
+- 无 staleness / focus 自动刷新 / 重试 / 乐观更新 / 缓存 devtools
+- 需遵守约定：服务端数据不进 Pinia（除非作为薄缓存），一致性由失效语义显式维护
+
+**推翻此决策的信号**（出现任一即引入 vue-query）：
+
+- 失效关系形成**多实体图**（一个 mutation 需失效多个 key 前缀）
+- 需要 staleness 策略 / focus 自动刷新 / 重试 / 乐观更新
+- 手写薄缓存开始膨胀（需维护失效关系、超过薄层体积）
+
 ---
 
 ## 8. 快速定位指南
@@ -466,7 +505,7 @@ src/composables/types.d.ts  composables 内部：Method、UseRequestOptions、Us
 | 目标 | 位置 |
 | ------ | ------ |
 | 改请求超时/鉴权/错误全局处理 | `src/services/http.ts`（axios 拦截器） |
-| 新增后端接口封装 | `src/services/api.ts` + 对应类型（`src/types/api.d.ts`） |
+| 新增后端接口 | `src/services/apiPath.ts` 登记端点 + `requestEndpoint` 包装 + 对应 DTO 类型（`src/types/*.d.ts`） |
 | 新增通用请求逻辑 | `src/composables/useRequest.ts` 等 |
 | 改/加运行时配置项 | `.env*` → `src/types/app-config.d.ts` → `public/config.js` |
 | 新增路由 / 嵌套路由 / 布局 | `src/router/routes.ts` |
@@ -480,3 +519,4 @@ src/composables/types.d.ts  composables 内部：Method、UseRequestOptions、Us
 | 配置 API 自动导入 / 组件自动注册 | `vite.config.ts`（AutoImport / VueComponents） |
 | 改 lint / 测试 / 样式配置 | `config/eslint.config.mjs` / `config/vitest.config.ts` / `config/postcss.config.mjs` |
 | 改全局样式 / 设计令牌 | `src/assets/styles/` |
+| 服务端数据层选型 / 何时引入 vue-query | `docs/architecture.md` §7.1（ADR-01） |

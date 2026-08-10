@@ -34,6 +34,7 @@ pnpm run build        # 类型检查 + 生产构建
 pnpm run preview      # 预览生产构建
 pnpm run type-check   # 仅类型检查
 pnpm run test         # 运行测试
+pnpm run test:coverage# 测试 + v8 覆盖率报告
 pnpm run lint         # ESLint 检查
 pnpm run lint:fix     # ESLint 自动修复
 ```
@@ -46,6 +47,7 @@ pnpm run lint:fix     # ESLint 自动修复
 | `build` | `vue-tsc -b` 类型检查 + `vite build` 生产构建（含 legacy 产物） |
 | `type-check` | `vue-tsc -b` 跨 project references 类型检查 |
 | `test` | Vitest 单次运行测试 |
+| `test:coverage` | Vitest 单次运行 + v8 覆盖率报告 |
 | `lint` | ESLint flat config 检查 |
 
 ---
@@ -106,8 +108,9 @@ console.log(config.featureFlags.enableDarkMode)
 ### 架构
 
 ```
-src/services/http.ts    axios 实例 + 拦截器
-src/services/api.ts     get/post/put/patch/del 封装
+src/services/http.ts    axios 实例 + 拦截器（unwrapEnvelope 解包）
+src/services/api.ts     request / requestEndpoint + get/post/put/patch/del 便捷方法
+src/services/apiPath.ts 端点注册表（endpoint 助手 + apiPath 集中登记）
 src/composables/        useRequest / useFetchTable / useDownload / useUpload
 ```
 
@@ -123,7 +126,7 @@ interface ApiResponse<T = unknown> {
 }
 ```
 
-响应拦截器自动解包：成功时返回 `data`，失败时抛出 `BusinessError`。
+响应拦截器经 `unwrapEnvelope` 处理：成功包络返回 `data`；业务码非成功抛 `BusinessError`（含 `code`/`status`/`data`）；Blob 与无业务 `code` 的原始数据原样透传。
 
 ### 直接调用 API 层
 
@@ -153,11 +156,33 @@ await del('/users/1')
 
 ### 请求配置
 
-所有方法接受可选的 `config` 参数，支持 axios 原生配置 + `timeout` 覆盖：
+所有方法接受可选的 `config` 参数，支持 axios 原生配置 + 请求扩展项：
 
 ```typescript
-await get<User[]>('/users', { page: 1 }, { timeout: 30000 })
+await get<User[]>('/users', { page: 1 }, { timeout: 30000 })            // 单请求超时覆盖
+await post<User>('/users', { name: 'Alice' }, { authRequired: true })   // 端点级鉴权标记
+await get<User[]>('/users', { page: 1 }, { signal: controller.signal }) // 取消信号（AbortController）
 ```
+
+### 端点注册表（apiPath）
+
+服务端接口推荐先在 `src/services/apiPath.ts` 集中登记，再经 `requestEndpoint` 调用——路径/方法/鉴权/DTO 一目了然，返回类型自动推导：
+
+```typescript
+// src/services/apiPath.ts（登记）
+export const apiPath = {
+  userList: endpoint<undefined, UserListDto>('/users', 'GET', { authRequired: true }),
+  createUser: endpoint<UserCreateDto, UserDto>('/users', 'POST'),
+}
+
+// 调用处：返回类型自动推导为 UserListDto / UserDto
+const list = await requestEndpoint(apiPath.userList)
+const created = await requestEndpoint(apiPath.createUser, { data: { name: 'Alice' } })
+```
+
+- `endpoint<Req, Res>(path, method, options)`：`Req` 入参 DTO、`Res` 出参 DTO（无入参用 `undefined`）
+- `authRequired: true`：请求拦截器据此注入凭证（配合 `src/services/http.ts` 的鉴权占位）
+- 未进注册表的兜底请求仍可用 `get/post/put/patch/del` 便捷方法
 
 ### 错误处理
 
@@ -165,10 +190,12 @@ await get<User[]>('/users', { page: 1 }, { timeout: 30000 })
 |---------|---------|------|
 | 超时 (`ECONNABORTED`) | 拦截器（全局占位） | 全局提示，reject 透传 |
 | 401 鉴权 | 拦截器（全局占位） | 跳转登录页，reject 透传 |
-| 业务异常 (`BusinessError`) | 局部 `error` ref | 组件内展示 |
+| 业务异常 (`BusinessError`，含 `code`/`status`/`data`) | 局部 `error` ref | 组件内展示 |
 | 网络异常 | 局部 `error` ref | 组件内展示 |
 
 拦截器处理完全局动作后仍 `reject`，局部可通过 `error` ref 接收。
+
+> 服务端数据层选型：本项目为何不内置 vue-query、何时引入，见[架构文档 §7.1（ADR-01）](./architecture.md#71-服务端数据层选型不内置-vue-queryadr-01)。
 
 ---
 
@@ -188,6 +215,8 @@ const { data, loading, error, execute, refresh } = useRequest<User[]>('/users', 
   immediate: true,      // 默认 true，是否立即执行
   initialData: [],      // 可选，初始数据
   timeout: 30000,       // 可选，单请求超时覆盖
+  authRequired: true,   // 可选，端点级鉴权标记（请求拦截器注入凭证）
+  signal: controller.signal, // 可选，取消信号（组件卸载时 abort 中止请求）
 })
 ```
 
@@ -313,7 +342,7 @@ const result = await upload(file, { category: 'avatar', userId: 1 })
 | `loading` | `Ref<boolean>` | 上传中状态 |
 | `progress` | `Ref<number>` | 上传进度 0-100 |
 | `error` | `Ref<unknown>` | 错误对象 |
-| `upload` | `(file: File, extra?) => Promise<unknown>` | 触发上传 |
+| `upload` | `(file: File, extra?, signal?) => Promise<unknown>` | 触发上传 |
 
 注意：不手动设置 `Content-Type`，让 axios 自动生成带 boundary 的 `multipart/form-data` 头。
 
@@ -495,6 +524,7 @@ console.log(userStore.profile)
 ```bash
 pnpm run test          # 单次运行
 pnpm run test:watch    # 监听模式
+pnpm run test:coverage # 覆盖率报告（v8，输出 text + html 到 coverage/）
 ```
 
 ### 编写测试
@@ -569,7 +599,7 @@ beforeEach(() => {
 src/types/api.d.ts          共享：ApiResponse、PageResult、PageParams、RequestOptions
 src/types/axios.d.ts        共享：axios 模块增强（实例方法返回 Promise<T>）
 src/types/app-config.d.ts   共享：AppConfig + window.__APP_CONFIG__
-src/services/types.d.ts     服务层内部：CombinedConfig
+src/services/types.d.ts     服务层内部：CombinedConfig、HttpMethod、ApiEndpoint、EndpointRequest、EndpointResponse
 src/composables/types.d.ts  composables 内部：UseRequestOptions、UseRequestReturn
 ```
 
@@ -614,13 +644,22 @@ src/composables/types.d.ts  composables 内部：UseRequestOptions、UseRequestR
 ### 添加 API 调用
 
 ```typescript
-// 方式一：在组件中使用 composable（推荐）
+// 方式一：apiPath 登记 + requestEndpoint（推荐，路径/方法/鉴权/DTO 集中管理）
+// src/services/apiPath.ts
+export const apiPath = { foo: endpoint<undefined, Foo>('/foo', 'GET') }
+// 调用处
+import { apiPath } from '@/services/apiPath'
+import { requestEndpoint } from '@/services/api'
+
+const foo = await requestEndpoint(apiPath.foo)
+
+// 方式二：在组件中使用 composable
 import { useRequest } from '@/composables/useRequest'
 
-const { data, loading } = useRequest<Foo>('/foo')
+const { data, loading } = useRequest<Foo>('/foo/1')
 
-// 方式二：在 store 或工具函数中直接调用
-import { get, post } from '@/services/api'
+// 方式三：便捷方法直接调用（未进注册表的兜底请求）
+import { get } from '@/services/api'
 
 const foo = await get<Foo>('/foo/1')
 ```

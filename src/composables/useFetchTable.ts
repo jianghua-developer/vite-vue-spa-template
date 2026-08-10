@@ -7,6 +7,8 @@ export function useFetchTable<T>(
     method?: 'GET' | 'POST'
     immediate?: boolean
     timeout?: number
+    signal?: AbortSignal
+    authRequired?: boolean
   },
 ) {
   // snake_case 分页参数
