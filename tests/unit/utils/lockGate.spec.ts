@@ -232,7 +232,7 @@ describe('createLockGate', () => {
   })
 
   it('隐患二：critical 持续同步抛错，有限重试后 reject，状态复位不卡死', async () => {
-    const critical = vi.fn<[], Promise<unknown>>(() => {
+    const critical = vi.fn<() => Promise<unknown>>(() => {
       throw new Error('配置错误')
     })
     const gate = createLockGate({ critical })
@@ -251,7 +251,7 @@ describe('createLockGate', () => {
 
   it('隐患三：critical 同步抛错不误杀先入队任务，重试成功即可挽救', async () => {
     let shouldThrow = true
-    const critical = vi.fn<[], Promise<unknown>>(() => {
+    const critical = vi.fn<() => Promise<unknown>>(() => {
       if (shouldThrow) throw new Error('瞬态环境错误')
       return Promise.resolve()
     })
@@ -302,7 +302,7 @@ describe('createLockGate', () => {
 
   it('同步抛错重试窗口内队列清空：状态复位不卡死，后续请求可正常触发', async () => {
     let shouldThrow = true
-    const critical = vi.fn<[], Promise<unknown>>(() => {
+    const critical = vi.fn<() => Promise<unknown>>(() => {
       if (shouldThrow) throw new Error('瞬态错误')
       return Promise.resolve()
     })

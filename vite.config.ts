@@ -81,8 +81,12 @@ export default defineConfig(({ mode }): UserConfig => {
       sourcemap: !isDev,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['vue', 'vue-router', 'pinia'],
+          // Vite 8（Rollup 4）manualChunks 仅接受函数形式；按 pnpm 包结构提取包名
+          manualChunks(id: string) {
+            if (id.includes('node_modules')) {
+              const pkg = id.split('node_modules/.pnpm/')[1]?.split('@')[0]
+              if (pkg && ['vue', 'vue-router', 'pinia'].includes(pkg)) return 'vendor'
+            }
           },
         },
       },
