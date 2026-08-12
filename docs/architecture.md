@@ -116,7 +116,7 @@
 │   ├── services/                           # API 层，基于 axios
 │   │   ├── types/                          # 模块内部类型（http.d.ts、apiPath.d.ts）
 │   │   ├── index.ts                        # 模块公开入口（barrel，统一从这里 import）
-│   │   ├── api.ts                          # request / requestEndpoint + get/post/put/patch/del 便捷方法
+│   │   ├── api.ts                          # request（通用请求）+ requestEndpoint（端点调用）
 │   │   ├── apiPath.ts                      # 端点注册表（endpoint 助手 + apiPath 集中登记）
 │   │   ├── http.ts                         # axios 实例 + 拦截器（鉴权/超时占位 + unwrapEnvelope 解包）
 │   │   └── errors.ts                       # 运行时值：SUCCESS_CODE + BusinessError

@@ -14,7 +14,8 @@ function splitOptions(config?: CombinedConfig) {
 
 /**
  * 通用请求：方法由 config 决定，返回类型 T。
- * 组件内推荐经 composables（useRequest 等）；未进注册表的兜底请求或需要原始控制时用本函数。
+ * 未进注册表的兜底请求或需要原始控制时用本函数；
+ * 服务端接口推荐登记到 apiPath 后经 requestEndpoint 调用，组件内走 composables。
  */
 export function request<T>(url: string, config?: CombinedConfig): Promise<T> {
   const { axiosConfig, options } = splitOptions(config)
@@ -34,26 +35,4 @@ export function requestEndpoint<E extends ApiEndpoint<unknown, unknown>>(
     method: endpoint.method,
     authRequired: endpoint.authRequired,
   })
-}
-
-// ============ 便捷方法（未进注册表的兜底请求直接使用） ============
-
-export function get<T>(url: string, params?: object, config?: CombinedConfig): Promise<T> {
-  return request<T>(url, { ...config, method: 'GET', params })
-}
-
-export function post<T>(url: string, data?: unknown, config?: CombinedConfig): Promise<T> {
-  return request<T>(url, { ...config, method: 'POST', data })
-}
-
-export function put<T>(url: string, data?: unknown, config?: CombinedConfig): Promise<T> {
-  return request<T>(url, { ...config, method: 'PUT', data })
-}
-
-export function patch<T>(url: string, data?: unknown, config?: CombinedConfig): Promise<T> {
-  return request<T>(url, { ...config, method: 'PATCH', data })
-}
-
-export function del<T>(url: string, config?: CombinedConfig): Promise<T> {
-  return request<T>(url, { ...config, method: 'DELETE' })
 }

@@ -3,7 +3,7 @@
 // 运行时
 export { default as http } from './http'
 export { unwrapEnvelope } from './http'
-export { request, requestEndpoint, get, post, put, patch, del } from './api'
+export { request, requestEndpoint } from './api'
 export { endpoint, apiPath } from './apiPath'
 export { SUCCESS_CODE, BusinessError } from './errors'
 

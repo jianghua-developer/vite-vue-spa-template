@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import { get, post, put, del, patch } from '@/services/api'
+import { request } from '@/services/api'
 import type { CombinedConfig } from '@/services/types/http'
 import type { UseRequestOptions, UseRequestReturn } from './types/useRequest'
 
@@ -15,28 +15,18 @@ export function useRequest<T>(
     loading.value = true
     error.value = null
     try {
-      const opts: CombinedConfig = {
+      const method = options?.method ?? 'GET'
+      const config: CombinedConfig = {
+        method,
         timeout: options?.timeout,
         authRequired: options?.authRequired,
         signal: options?.signal,
       }
-      switch (options?.method ?? 'GET') {
-        case 'GET':
-          data.value = await get<T>(url, payload as object, opts)
-          break
-        case 'POST':
-          data.value = await post<T>(url, payload, opts)
-          break
-        case 'PUT':
-          data.value = await put<T>(url, payload, opts)
-          break
-        case 'PATCH':
-          data.value = await patch<T>(url, payload, opts)
-          break
-        case 'DELETE':
-          data.value = await del<T>(url, opts)
-          break
-      }
+      // GET 用 params，POST/PUT/PATCH 用 body，DELETE 不带负载
+      if (method === 'GET') config.params = payload as object
+      else if (method !== 'DELETE') config.data = payload
+
+      data.value = await request<T>(url, config)
       return data.value
     } catch (e) {
       error.value = e

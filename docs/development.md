@@ -110,7 +110,7 @@ console.log(config.featureFlags.enableDarkMode)
 ```
 src/services/           API 层：index.ts 模块入口（barrel）+ types/ 子目录
   http.ts               axios 实例 + 拦截器（unwrapEnvelope 解包）
-  api.ts                request / requestEndpoint + get/post/put/patch/del 便捷方法
+  api.ts                request（通用请求）/ requestEndpoint（端点调用）
   apiPath.ts            端点注册表（endpoint 助手 + apiPath 集中登记）
 src/composables/        composables：index.ts 模块入口（barrel）+ types/ 子目录
 src/utils/              utils：index.ts 模块入口（barrel）+ types/ 子目录
@@ -132,38 +132,32 @@ interface ApiResponse<T = unknown> {
 
 ### 直接调用 API 层
 
-适用于非组件场景（如工具函数、store actions）：
+适用于非组件场景（如工具函数、store actions）、未进注册表的兜底请求：
 
 ```typescript
-import { get, post, put, patch, del } from '@/services'
+import { request } from '@/services'
 
 // GET（params 拼接到 query string）
-const user = await get<User>('/users/1')
+const user = await request<User>('/users/1', { method: 'GET' })
 
 // GET 带查询参数
-const list = await get<User[]>('/users', { page: 1, page_size: 20 })
+const list = await request<User[]>('/users', { method: 'GET', params: { page: 1, page_size: 20 } })
 
 // POST
-const created = await post<User>('/users', { name: 'Alice' })
+const created = await request<User>('/users', { method: 'POST', data: { name: 'Alice' } })
 
-// PUT
-await put('/users/1', { name: 'Bob' })
-
-// PATCH
-await patch('/users/1', { status: 'active' })
-
-// DELETE
-await del('/users/1')
+// PUT / PATCH / DELETE 同理：method 指定 + data（body）/ params
+await request('/users/1', { method: 'DELETE' })
 ```
 
 ### 请求配置
 
-所有方法接受可选的 `config` 参数，支持 axios 原生配置 + 请求扩展项：
+`request(url, config)` 的 `config` 支持 axios 原生配置 + 请求扩展项：
 
 ```typescript
-await get<User[]>('/users', { page: 1 }, { timeout: 30000 })            // 单请求超时覆盖
-await post<User>('/users', { name: 'Alice' }, { authRequired: true })   // 端点级鉴权标记
-await get<User[]>('/users', { page: 1 }, { signal: controller.signal }) // 取消信号（AbortController）
+await request<User[]>('/users', { method: 'GET', params: { page: 1 }, timeout: 30000 })            // 单请求超时覆盖
+await request<User>('/users', { method: 'POST', data: { name: 'Alice' }, authRequired: true })    // 端点级鉴权标记
+await request<User[]>('/users', { method: 'GET', params: { page: 1 }, signal: controller.signal }) // 取消信号
 ```
 
 ### 端点注册表（apiPath）
@@ -184,7 +178,7 @@ const created = await requestEndpoint(apiPath.createUser, { data: { name: 'Alice
 
 - `endpoint<Req, Res>(path, method, options)`：`Req` 入参 DTO、`Res` 出参 DTO（无入参用 `undefined`）
 - `authRequired: true`：请求拦截器据此注入凭证（配合 `src/services/http.ts` 的鉴权占位）
-- 未进注册表的兜底请求仍可用 `get/post/put/patch/del` 便捷方法
+- 未进注册表的兜底请求用 `request(url, config)`（`method` 指定 HTTP 方法）
 
 ### 错误处理
 
@@ -461,8 +455,8 @@ export const useUserStore = defineStore('user', () => {
   const profile = ref<User | null>(null)
 
   async function fetchProfile() {
-    const { get } = await import('@/services/api')
-    profile.value = await get<User>('/user/profile')
+    const { request } = await import('@/services')
+    profile.value = await request<User>('/user/profile', { method: 'GET' })
   }
 
   return { profile, fetchProfile }
@@ -665,10 +659,10 @@ import { useRequest } from '@/composables'
 
 const { data, loading } = useRequest<Foo>('/foo/1')
 
-// 方式三：便捷方法直接调用（未进注册表的兜底请求）
-import { get } from '@/services'
+// 方式三：request 直接调用（未进注册表的兜底请求）
+import { request } from '@/services'
 
-const foo = await get<Foo>('/foo/1')
+const foo = await request<Foo>('/foo/1', { method: 'GET' })
 ```
 
 ### 添加 UI 组件

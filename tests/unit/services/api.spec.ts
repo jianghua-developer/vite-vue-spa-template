@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import http from '@/services/http'
-import { request, requestEndpoint, get, post, del } from '@/services/api'
+import { request, requestEndpoint } from '@/services/api'
 import { endpoint } from '@/services/apiPath'
 
 // 完整替换 http 模块：验证 api 层如何组织 config 并透传给 http.request
@@ -13,9 +13,9 @@ beforeEach(() => {
   vi.mocked(http.request).mockResolvedValue('ok')
 })
 
-describe('request / 便捷方法', () => {
-  it('get 走 GET + params', async () => {
-    await get('/users', { page: 1 }, { timeout: 1000 })
+describe('request', () => {
+  it('GET 带 params', async () => {
+    await request('/users', { method: 'GET', params: { page: 1 }, timeout: 1000 })
 
     expect(http.request).toHaveBeenCalledWith(expect.objectContaining({
       url: '/users',
@@ -25,22 +25,13 @@ describe('request / 便捷方法', () => {
     }))
   })
 
-  it('post 走 POST + data', async () => {
-    await post('/users', { name: 'Alice' })
+  it('POST 带 data', async () => {
+    await request('/users', { method: 'POST', data: { name: 'Alice' } })
 
     expect(http.request).toHaveBeenCalledWith(expect.objectContaining({
       url: '/users',
       method: 'POST',
       data: { name: 'Alice' },
-    }))
-  })
-
-  it('del 走 DELETE 且不带 body', async () => {
-    await del('/users/1')
-
-    expect(http.request).toHaveBeenCalledWith(expect.objectContaining({
-      url: '/users/1',
-      method: 'DELETE',
     }))
   })
 
