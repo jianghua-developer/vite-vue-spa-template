@@ -1,5 +1,6 @@
 import http from './http'
-import type { CombinedConfig, ApiEndpoint, EndpointResponse } from './types'
+import type { CombinedConfig } from './types/http'
+import type { ApiEndpoint, EndpointResponse } from './types/apiPath'
 import type { RequestOptions } from '@/types/api'
 
 /** 拆分自定义扩展项（经 _options 透传给拦截器）与 axios 原生配置 */

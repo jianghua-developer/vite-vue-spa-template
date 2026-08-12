@@ -1,11 +1,4 @@
-import type { AxiosRequestConfig } from 'axios'
-import type { RequestOptions } from '@/types/api'
-
-// 调用方传入的配置：axios 原生配置 + 请求扩展配置
-export type CombinedConfig = AxiosRequestConfig & RequestOptions
-
-// HTTP 方法
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+import type { HttpMethod } from './http'
 
 /** 端点定义：路径 + 方法 + 鉴权标记 + 入参/出参 DTO（request/response 为编译期占位类型，运行时不存在） */
 export interface ApiEndpoint<Req = unknown, Res = unknown> {

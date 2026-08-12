@@ -91,7 +91,7 @@ pnpm run lint:fix     # ESLint 自动修复
 ### 在代码中读取配置
 
 ```typescript
-import { useAppConfig } from '@/composables/useAppConfig'
+import { useAppConfig } from '@/composables'
 
 const config = useAppConfig()
 console.log(config.apiBaseUrl)
@@ -108,10 +108,12 @@ console.log(config.featureFlags.enableDarkMode)
 ### 架构
 
 ```
-src/services/http.ts    axios 实例 + 拦截器（unwrapEnvelope 解包）
-src/services/api.ts     request / requestEndpoint + get/post/put/patch/del 便捷方法
-src/services/apiPath.ts 端点注册表（endpoint 助手 + apiPath 集中登记）
-src/composables/        useRequest / useFetchTable / useDownload / useUpload
+src/services/           API 层：index.ts 模块入口（barrel）+ types/ 子目录
+  http.ts               axios 实例 + 拦截器（unwrapEnvelope 解包）
+  api.ts                request / requestEndpoint + get/post/put/patch/del 便捷方法
+  apiPath.ts            端点注册表（endpoint 助手 + apiPath 集中登记）
+src/composables/        composables：index.ts 模块入口（barrel）+ types/ 子目录
+src/utils/              utils：index.ts 模块入口（barrel）+ types/ 子目录
 ```
 
 ### 通用响应结构
@@ -133,7 +135,7 @@ interface ApiResponse<T = unknown> {
 适用于非组件场景（如工具函数、store actions）：
 
 ```typescript
-import { get, post, put, patch, del } from '@/services/api'
+import { get, post, put, patch, del } from '@/services'
 
 // GET（params 拼接到 query string）
 const user = await get<User>('/users/1')
@@ -206,7 +208,7 @@ const created = await requestEndpoint(apiPath.createUser, { data: { name: 'Alice
 通用请求 composable，支持所有 HTTP 方法。
 
 ```typescript
-import { useRequest } from '@/composables/useRequest'
+import { useRequest } from '@/composables'
 
 interface User { id: number; name: string }
 
@@ -241,7 +243,7 @@ await execute({ id: 1 })
 
 ```typescript
 import { watch } from 'vue'
-import { BusinessError } from '@/services/errors'
+import { BusinessError } from '@/services'
 
 const { error } = useRequest('/users')
 
@@ -257,7 +259,7 @@ watch(error, (err) => {
 表格场景专用，内置 snake_case 分页参数。
 
 ```typescript
-import { useFetchTable } from '@/composables/useFetchTable'
+import { useFetchTable } from '@/composables'
 
 interface User { id: number; name: string }
 
@@ -299,22 +301,22 @@ interface PageResult<T> {
 文件下载，自动解析 `Content-Disposition` 获取文件名。
 
 ```typescript
-import { useDownload } from '@/composables/useDownload'
+import { useDownload } from '@/composables'
 
 const { loading, error, download } = useDownload('/export')
 
 // 基本用法
 await download({ type: 'excel' })
 
-// 指定回退文件名（当响应头无 Content-Disposition 时使用）
-await download({ type: 'pdf' }, 'report.pdf')
+// 指定回退文件名 + 需鉴权下载
+await download({ type: 'pdf' }, { fileName: 'report.pdf', authRequired: true })
 ```
 
 | 返回值 | 类型 | 说明 |
 |--------|------|------|
 | `loading` | `Ref<boolean>` | 下载中状态 |
 | `error` | `Ref<unknown>` | 错误对象 |
-| `download` | `(params?, fallbackName?, config?) => Promise<void>` | 触发下载 |
+| `download` | `(params?, options?) => Promise<void>` | 触发下载（options: `fileName`/`signal`/`authRequired`） |
 
 特性：
 - 单次请求获取文件 + 文件名（不额外发 HEAD 请求）
@@ -326,15 +328,15 @@ await download({ type: 'pdf' }, 'report.pdf')
 文件上传，带进度条。
 
 ```typescript
-import { useUpload } from '@/composables/useUpload'
+import { useUpload } from '@/composables'
 
 const { loading, progress, error, upload } = useUpload('/upload')
 
 // 上传单个文件
 const result = await upload(fileInput.files[0])
 
-// 上传文件 + 额外表单字段
-const result = await upload(file, { category: 'avatar', userId: 1 })
+// 上传文件 + 额外表单字段 + 自定义字段名与取消信号
+const result = await upload(file, { category: 'avatar' }, { fieldName: 'avatar', signal: controller.signal })
 ```
 
 | 返回值 | 类型 | 说明 |
@@ -342,7 +344,7 @@ const result = await upload(file, { category: 'avatar', userId: 1 })
 | `loading` | `Ref<boolean>` | 上传中状态 |
 | `progress` | `Ref<number>` | 上传进度 0-100 |
 | `error` | `Ref<unknown>` | 错误对象 |
-| `upload` | `(file: File, extra?, signal?) => Promise<unknown>` | 触发上传 |
+| `upload` | `(file: File, extra?, options?) => Promise<unknown>` | 触发上传（options: `fieldName`/`fileName`/`signal`） |
 
 注意：不手动设置 `Content-Type`，让 axios 自动生成带 boundary 的 `multipart/form-data` 头。
 
@@ -379,7 +381,7 @@ Feature 组件（`components/features/`）-- 组合 stores + composables + API�
 
 ```vue
 <script setup lang="ts">
-import { useFetchTable } from '@/composables/useFetchTable'
+import { useFetchTable } from '@/composables'
 
 interface User { id: number; name: string }
 const { loading, data, refresh } = useFetchTable<User>('/users')
@@ -534,7 +536,7 @@ pnpm run test:coverage # 覆盖率报告（v8，输出 text + html 到 coverage/
 ```typescript
 // tests/unit/composables/useRequest.spec.ts
 import { describe, it, expect, vi } from 'vitest'
-import { useRequest } from '@/composables/useRequest'
+import { useRequest } from '@/composables'
 
 describe('useRequest', () => {
   it('loads data on immediate', async () => {
@@ -559,7 +561,7 @@ describe('useRequest', () => {
 ### 测试 useAppConfig
 
 ```typescript
-import { useAppConfig, resetAppConfig } from '@/composables/useAppConfig'
+import { useAppConfig, resetAppConfig } from '@/composables'
 
 beforeEach(() => {
   resetAppConfig()  // 先重置单例
@@ -584,23 +586,29 @@ beforeEach(() => {
 | 类型归属 | 放置位置 | 说明 |
 |---------|---------|------|
 | 跨模块共享 | `src/types/xxx.d.ts` | 被多个模块复用的类型（API 响应、分页、请求配置等） |
-| 模块内部 | `src/xxx/types.d.ts` | 仅单个模块使用的类型 |
+| 模块内部 | `src/xxx/types/*.d.ts` | 仅单个模块使用的类型，一个类型文件对应一个业务文件 |
 
 规则：
 
 - 类型定义文件一律以 `.d.ts` 结尾
 - 实现文件内不声明 `type`/`interface`，统一通过 `import type` 引用
+- 模块类型放 `types/` 子目录，文件按对应业务命名（如 `useRequest.d.ts` ↔ `useRequest.ts`）
+- 每个业务模块有一个 `index.ts` **barrel** 作为公开入口，内部文件不直接对外，统一 `from '@/模块'` 导入
 - 运行时产物（常量、class）不能放入 `.d.ts`，放在对应模块的 `.ts` 文件中
   - 例：`BusinessError`（class）、`SUCCESS_CODE`（常量）放在 `src/services/errors.ts`
 
 现有类型布局：
 
 ```
-src/types/api.d.ts          共享：ApiResponse、PageResult、PageParams、RequestOptions
-src/types/axios.d.ts        共享：axios 模块增强（实例方法返回 Promise<T>）
-src/types/app-config.d.ts   共享：AppConfig + window.__APP_CONFIG__
-src/services/types.d.ts     服务层内部：CombinedConfig、HttpMethod、ApiEndpoint、EndpointRequest、EndpointResponse
-src/composables/types.d.ts  composables 内部：UseRequestOptions、UseRequestReturn
+src/types/api.d.ts                共享：ApiResponse、PageResult、PageParams、RequestOptions
+src/types/axios.d.ts              共享：axios 模块增强（实例方法返回 Promise<T>）
+src/types/app-config.d.ts         共享：AppConfig + window.__APP_CONFIG__
+src/services/types/http.d.ts      服务层内部：CombinedConfig、HttpMethod
+src/services/types/apiPath.d.ts   服务层内部：ApiEndpoint、EndpointRequest、EndpointResponse
+src/composables/types/useRequest.d.ts   composables 内部：Method、UseRequestOptions、UseRequestReturn
+src/composables/types/useDownload.d.ts  composables 内部：UseDownloadOptions
+src/composables/types/useUpload.d.ts    composables 内部：UseUploadOptions
+src/utils/types/lockGate.d.ts          utils 内部：LockGateOptions、LockGate、ConcurrencyLimiter
 ```
 
 ### 自动导入（unplugin）
@@ -648,18 +656,17 @@ src/composables/types.d.ts  composables 内部：UseRequestOptions、UseRequestR
 // src/services/apiPath.ts
 export const apiPath = { foo: endpoint<undefined, Foo>('/foo', 'GET') }
 // 调用处
-import { apiPath } from '@/services/apiPath'
-import { requestEndpoint } from '@/services/api'
+import { apiPath, requestEndpoint } from '@/services'
 
 const foo = await requestEndpoint(apiPath.foo)
 
 // 方式二：在组件中使用 composable
-import { useRequest } from '@/composables/useRequest'
+import { useRequest } from '@/composables'
 
 const { data, loading } = useRequest<Foo>('/foo/1')
 
 // 方式三：便捷方法直接调用（未进注册表的兜底请求）
-import { get } from '@/services/api'
+import { get } from '@/services'
 
 const foo = await get<Foo>('/foo/1')
 ```

@@ -7,7 +7,7 @@
 > - **团队开发人员**：快速理解系统如何组织、各模块职责、约定与约束；
 > - **AI Agent / 大模型助手**：将本文作为理解本项目代码库的上下文，用于回答"相关文件在哪、为什么这样设计、改动应落在哪"。
 >
-> **配套文档**：[开发指南](./development-guide.md) 侧重**如何操作**（环境配置、API 调用、组件开发、测试）；本文侧重**是什么与为什么**（结构、机制、设计决策）。
+> **配套文档**：[开发指南](./development.md) 侧重**如何操作**（环境配置、API 调用、组件开发、测试）；本文侧重**是什么与为什么**（结构、机制、设计决策）。
 
 ## 目录
 
@@ -104,7 +104,8 @@
 │   │   └── modules/                        # 业务 store
 │   │
 │   ├── composables/                        # 可复用组合式逻辑（有状态，无模板）
-│   │   ├── types.d.ts                      # 模块内部类型（useRequest 相关）
+│   │   ├── types/                          # 模块内部类型（useRequest/useDownload/useUpload.d.ts）
+│   │   ├── index.ts                        # 模块公开入口（barrel，统一从这里 import）
 │   │   ├── useAppConfig.ts                 # 返回 window.__APP_CONFIG__ 的响应式只读引用
 │   │   ├── useFeatureFlag.ts               # 基于 useAppConfig 的特性开关
 │   │   ├── useRequest.ts                   # 通用请求（GET/POST/PUT/DELETE/PATCH）
@@ -113,7 +114,8 @@
 │   │   └── useUpload.ts                    # 文件上传（进度 + error ref）
 │   │
 │   ├── services/                           # API 层，基于 axios
-│   │   ├── types.d.ts                      # 模块内部类型（CombinedConfig、ApiEndpoint 等）
+│   │   ├── types/                          # 模块内部类型（http.d.ts、apiPath.d.ts）
+│   │   ├── index.ts                        # 模块公开入口（barrel，统一从这里 import）
 │   │   ├── api.ts                          # request / requestEndpoint + get/post/put/patch/del 便捷方法
 │   │   ├── apiPath.ts                      # 端点注册表（endpoint 助手 + apiPath 集中登记）
 │   │   ├── http.ts                         # axios 实例 + 拦截器（鉴权/超时占位 + unwrapEnvelope 解包）
@@ -131,7 +133,10 @@
 │   │   └── DefaultLayout.vue               # 默认布局：<RouterView />
 │   │
 │   └── utils/                              # 纯工具函数（无框架耦合）
+│       ├── types/                          # 模块内部类型（lockGate.d.ts）
+│       ├── index.ts                        # 模块公开入口（barrel，统一从这里 import）
 │       ├── format.ts                       # 日期、货币、数字格式化
+│       ├── lockGate.ts                     # 并发限制器 + 排他门闩（createConcurrencyLimiter / createLockGate）
 │       └── validation.ts                   # 表单校验辅助
 │
 ├── config/                                 # ★ 工具链配置（统一管理，见 §3）
@@ -160,7 +165,7 @@
 ├── .gitignore
 └── docs/                                   # 项目文档
     ├── architecture.md                     # 本文档（架构描述）
-    └── development-guide.md                # 开发指南（操作手册）
+    └── development.md                      # 开发指南（操作手册）
 ```
 
 **目录职责速览**：
@@ -423,8 +428,12 @@ src/types/api.d.ts          共享：ApiResponse、PageResult、PageParams、Req
 src/types/axios.d.ts        共享：axios 模块增强（实例方法返回 Promise<T>）
 src/types/app-config.d.ts   共享：AppConfig + window.__APP_CONFIG__
 src/types/env.d.ts          共享：vite/client 引用 + *.vue 模块声明
-src/services/types.d.ts     服务层内部：CombinedConfig、HttpMethod、ApiEndpoint、EndpointRequest、EndpointResponse
-src/composables/types.d.ts  composables 内部：Method、UseRequestOptions、UseRequestReturn
+src/services/types/http.d.ts      服务层内部：CombinedConfig、HttpMethod
+src/services/types/apiPath.d.ts   服务层内部：ApiEndpoint、EndpointRequest、EndpointResponse
+src/composables/types/useRequest.d.ts   composables 内部：Method、UseRequestOptions、UseRequestReturn
+src/composables/types/useDownload.d.ts  composables 内部：UseDownloadOptions
+src/composables/types/useUpload.d.ts    composables 内部：UseUploadOptions
+src/utils/types/lockGate.d.ts          utils 内部：LockGateOptions、LockGate、ConcurrencyLimiter
 ```
 
 **约束**：实现文件（`.ts`/`.vue`）内不声明 `type`/`interface`，统一 `import type` 引用；模块的 `types.d.ts` 仅限本模块目录内使用，禁止被其他模块直接引用。
@@ -512,7 +521,7 @@ src/composables/types.d.ts  composables 内部：Method、UseRequestOptions、Us
 | 加导航守卫 / 页面标题 | `src/router/guards.ts` |
 | 新增全局状态 | `src/stores/modules/` |
 | 新增跨模块类型 | `src/types/*.d.ts` |
-| 新增模块内部类型 | 该模块的 `types.d.ts` |
+| 新增模块内部类型 | 该模块的 `types/*.d.ts` |
 | 新增展示组件 / 容器组件 | `src/components/ui/` / `src/components/features/` |
 | 新增页面 / 布局 | `src/views/` / `src/layouts/` |
 | 改构建 / 部署路径 | `vite.config.ts`（`base`）、`tsconfig.json`、`config/` |

@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
 import { get, post, put, del, patch } from '@/services/api'
-import type { CombinedConfig } from '@/services/types'
-import type { UseRequestOptions, UseRequestReturn } from './types'
+import type { CombinedConfig } from '@/services/types/http'
+import type { UseRequestOptions, UseRequestReturn } from './types/useRequest'
 
 export function useRequest<T>(
   url: string,

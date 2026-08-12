@@ -1,11 +1,12 @@
 import http from '@/services/http'
-import type { AxiosResponse, AxiosRequestConfig } from 'axios'
+import type { AxiosResponse } from 'axios'
+import type { UseDownloadOptions } from './types/useDownload'
 
 /**
  * 从 Content-Disposition 头解析文件名
  * 兼容 filename=xxx 和 filename*=UTF-8''xxx 两种格式
  */
-function parseFilename(disposition: string | undefined, fallback: string): string {
+export function parseFilename(disposition: string | undefined, fallback: string): string {
   if (!disposition) return fallback
   // filename*=UTF-8''编码文件名
   const star = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(disposition)
@@ -22,22 +23,22 @@ export function useDownload(url: string) {
 
   async function download(
     params?: object,
-    fallbackName = 'download',
-    config?: AxiosRequestConfig,
+    options: UseDownloadOptions = {},
   ): Promise<void> {
     loading.value = true
     error.value = null
     try {
       // 单次请求：下载文件 + 从同一响应获取 Content-Disposition 头
       const response = await http.get(url, {
-        ...config,
         params,
         responseType: 'blob',
+        signal: options.signal,
+        _options: { authRequired: options.authRequired },
       }) as unknown as AxiosResponse
 
       const blob = response.data as Blob
       const disposition = response.headers['content-disposition'] as string | undefined
-      const filename = parseFilename(disposition, fallbackName)
+      const filename = parseFilename(disposition, options.fileName ?? 'download')
 
       // 创建 <a> 元素触发下载（appendChild 兼容 Firefox）
       const link = document.createElement('a')

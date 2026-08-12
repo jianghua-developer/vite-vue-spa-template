@@ -1,4 +1,5 @@
 import http from '@/services/http'
+import type { UseUploadOptions } from './types/useUpload'
 
 export function useUpload(url: string) {
   const loading = ref(false)
@@ -8,14 +9,14 @@ export function useUpload(url: string) {
   async function upload(
     file: File,
     extra?: Record<string, unknown>,
-    signal?: AbortSignal,
+    options: UseUploadOptions = {},
   ): Promise<unknown> {
     loading.value = true
     progress.value = 0
     error.value = null
 
     const form = new FormData()
-    form.append('file', file)
+    form.append(options.fieldName ?? 'file', file, options.fileName ?? file.name)
     if (extra) {
       for (const [k, v] of Object.entries(extra)) {
         form.append(k, String(v))
@@ -24,7 +25,7 @@ export function useUpload(url: string) {
 
     try {
       return await http.post(url, form, {
-        signal,
+        signal: options.signal,
         onUploadProgress: (e) => {
           progress.value = Math.round((e.loaded * 100) / (e.total ?? 1))
         },

@@ -5,7 +5,7 @@ import type {
   LockGateOptions,
   LockGateRound,
   LockGateState,
-} from './types'
+} from './types/lockGate'
 
 /** 创建中止错误（AbortError 语义，供等待期剪除使用） */
 function createAbortError(): DOMException {
