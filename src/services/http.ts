@@ -2,13 +2,14 @@ import axios, {
   type AxiosInstance,
   type AxiosResponse,
 } from 'axios'
-import { SUCCESS_CODE, BusinessError } from '@/services/errors'
+import { BusinessError } from '@/services/errors'
+import { apiBaseUrl, DEFAULT_API_TIMEOUT, API_SUCCESS_CODE } from '@/config'
 import type { ApiResponse } from '@/types/api'
 
 const instance: AxiosInstance = axios.create({
-  // 去尾部斜杠，避免与请求路径拼接时出现双斜杠（如 apiBaseUrl 配成 'https://x/api/'）
-  baseURL: window.__APP_CONFIG__?.apiBaseUrl.replace(/\/+$/, ''),
-  timeout: window.__APP_CONFIG__?.timeout ?? 15000,
+  // apiBaseUrl 已在 src/config/env.ts 统一去尾斜杠（避免拼接双斜杠）
+  baseURL: apiBaseUrl,
+  timeout: window.__APP_CONFIG__?.timeout ?? DEFAULT_API_TIMEOUT,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -39,7 +40,7 @@ function isApiResponse(value: unknown): value is ApiResponse<unknown> {
 
 /**
  * 解包约定响应包络 { code, data, msg }：
- * - code === SUCCESS_CODE → 返回 data（业务数据）
+ * - code === API_SUCCESS_CODE → 返回 data（业务数据）
  * - code 非成功 → 抛业务 BusinessError（含 code / msg / HTTP status / 原始包络）
  * - 非包络（文件流 / 原始数据）→ 原样返回
  *
@@ -47,7 +48,7 @@ function isApiResponse(value: unknown): value is ApiResponse<unknown> {
  */
 export function unwrapEnvelope<T>(body: unknown, status?: number): T {
   if (!isApiResponse(body)) return body as T
-  if (body.code === SUCCESS_CODE) return body.data as T
+  if (body.code === API_SUCCESS_CODE) return body.data as T
   throw new BusinessError(body.code, body.msg, status, body)
 }
 

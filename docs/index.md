@@ -38,6 +38,7 @@ pnpm preview      # 预览生产构建
 | 路径 | 职责 |
 |---|---|
 | `config/` | 工具链配置（tsconfig / eslint / vitest / postcss / vite 插件） |
+| `src/config/` | 应用配置（常量 / 环境访问，经 barrel 导入） |
 | `src/services/` | HTTP 请求层（axios 实例 + 封装），所有请求的出口 |
 | `src/composables/` | 可复用有状态逻辑（useRequest / useFetchTable / useDownload / useUpload） |
 | `src/stores/` | 全局共享业务状态（Pinia，store 放 `modules/`） |

@@ -85,10 +85,16 @@
 │   │       ├── variables.css               # CSS 自定义属性（设计令牌）
 │   │       └── reset.css                   # 最小化 CSS reset
 │   │
+│   ├── config/                             # 应用配置：常量 + 环境访问
+│   │   ├── index.ts                        # 模块公开入口（barrel）
+│   │   ├── constants.ts                    # APP_NAME / DEFAULT_API_TIMEOUT / API_SUCCESS_CODE
+│   │   └── env.ts                          # apiBaseUrl（去尾斜杠）/ mode / isDev
+│   │
 │   ├── types/                              # 跨模块共享类型（.d.ts，见 §6.1）
 │   │   ├── api.d.ts                        # ApiResponse、PageResult、PageParams、RequestOptions
 │   │   ├── axios.d.ts                      # axios 模块增强（实例方法返回 Promise<T>）
 │   │   ├── app-config.d.ts                 # AppConfig + window.__APP_CONFIG__ 类型
+│   │   ├── common.d.ts                     # 通用工具类型：ID、Nullable、PartialDeep
 │   │   ├── env.d.ts                        # vite/client 类型引用 + *.vue 模块声明
 │   │   ├── global.d.ts                     # 其他全局声明
 │   │   ├── auto-imports.d.ts               # ⚙ 生成：unplugin-auto-import 自动导入 API 的全局声明
@@ -119,7 +125,7 @@
 │   │   ├── api.ts                          # request（通用请求）+ requestEndpoint（端点调用）
 │   │   ├── apiPath.ts                      # 端点注册表（endpoint 助手 + apiPath 集中登记）
 │   │   ├── http.ts                         # axios 实例 + 拦截器（鉴权/超时占位 + unwrapEnvelope 解包）
-│   │   └── errors.ts                       # 运行时值：SUCCESS_CODE + BusinessError
+│   │   └── errors.ts                       # 运行时值：BusinessError
 │   │
 │   ├── components/                         # Vue SFC 组件
 │   │   ├── ui/                             # ★ 无状态组件：纯展示，props/emits 无副作用
@@ -330,7 +336,7 @@ L2 的 `public/config.js` 示例（按需覆盖字段；`apiBaseUrl` 请替换�
 
 ```typescript
 interface ApiResponse<T = unknown> {
-  code: string    // SUCCESS_CODE = '00000' 表示成功
+  code: string    // API_SUCCESS_CODE = '00000' 表示成功
   data: T
   msg: string
 }
@@ -419,7 +425,7 @@ DefaultLayout.vue          ← 匹配 path: '/'（父级）
 | 跨模块共享 | `src/types/xxx.d.ts` | 被两个及以上模块引用 |
 | 模块内部 | `src/xxx/types.d.ts` | 仅本模块（含模块内互相引用）使用 |
 
-**运行时产物处理**：`.d.ts` 只承载类型声明，不能包含实现。运行时常量/class 归入对应模块的 `.ts` 文件（如 `src/services/errors.ts` 的 `SUCCESS_CODE`、`BusinessError`）。
+**运行时产物处理**：`.d.ts` 只承载类型声明，不能包含实现。运行时常量/class 归入对应模块的 `.ts` 文件（如 `src/config/constants.ts` 的 `API_SUCCESS_CODE`、`src/services/errors.ts` 的 `BusinessError`）。
 
 **现有类型布局**：
 
@@ -428,6 +434,7 @@ src/types/api.d.ts          共享：ApiResponse、PageResult、PageParams、Req
 src/types/axios.d.ts        共享：axios 模块增强（实例方法返回 Promise<T>）
 src/types/app-config.d.ts   共享：AppConfig + window.__APP_CONFIG__
 src/types/env.d.ts          共享：vite/client 引用 + *.vue 模块声明
+src/types/common.d.ts       共享：通用工具类型（ID、Nullable、PartialDeep）
 src/services/types/http.d.ts      服务层内部：CombinedConfig、HttpMethod
 src/services/types/apiPath.d.ts   服务层内部：ApiEndpoint、EndpointRequest、EndpointResponse
 src/composables/types/useRequest.d.ts   composables 内部：Method、UseRequestOptions、UseRequestReturn
@@ -505,6 +512,22 @@ src/utils/types/lockGate.d.ts          utils 内部：LockGateOptions、LockGate
 - 需要 staleness 策略 / focus 自动刷新 / 重试 / 乐观更新
 - 手写薄缓存开始膨胀（需维护失效关系、超过薄层体积）
 
+### 7.2 不预设品牌化视觉成品，但保留极简无样式骨架（ADR-02）
+
+> 状态：已定（2026-08）。本项目提供**机制 + 接口契约 + 文档示例**，视觉决策交给业务；仅保留极简无样式骨架保证"可运行"。
+
+**结论**：不预设品牌化视觉成品（组件 / 错误页等由业务按项目风格自行实现），但保留**极简无样式骨架**——布局壳（`DefaultLayout`）、首页占位（`HomeView`）、404 页（`NotFoundView`）。
+
+**理由**：
+
+- **品牌化视觉成品注定被替换**：每个项目都有自己的风格 / 品牌 / 目标用户，预置任何组件样式（加载、错误、页头）都会以高概率被替换，预置即维护负担
+- **演示业务注定被删除**：演示业务（页面 / 接口 / store）在正式业务中没有引用、必然被删除，预置即"延迟暴露的坑"
+- **避免名义锚定**：源码里只要存在默认实现，AI agent 与开发者就会默认沿用而非按项目风格生成，抑制风格沉淀
+
+因此本项目只保留**机制**（HTTP 层、数据流、错误兜底接线、并发原语 lockGate）与**文档示例**（视觉组件的接口形状 + 参考实现），UI 风格由业务自行建立，沉淀后按风格族蒸馏成组件库。
+
+**例外——极简无样式骨架**：`src/layouts/DefaultLayout.vue`、`src/views/HomeView.vue`、`src/views/NotFoundView.vue` 提供**单行文本 / 结构 div 级**的无样式骨架（无导航、无品牌、无 CSS）。它们承载的是"可运行结构"而非视觉风格：复用成本几乎为零（最多改一行内容），并避免项目初始化后白屏 / 缺 404 兜底。
+
 ---
 
 ## 8. 快速定位指南
@@ -529,3 +552,4 @@ src/utils/types/lockGate.d.ts          utils 内部：LockGateOptions、LockGate
 | 改 lint / 测试 / 样式配置 | `config/eslint.config.mjs` / `config/vitest.config.ts` / `config/postcss.config.mjs` |
 | 改全局样式 / 设计令牌 | `src/assets/styles/` |
 | 服务端数据层选型 / 何时引入 vue-query | `docs/architecture.md` §7.1（ADR-01） |
+| 视觉成品 / 极简骨架边界 | `docs/architecture.md` §7.2（ADR-02） |

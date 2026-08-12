@@ -1,0 +1,4 @@
+# pnpm 11 设置：允许以下依赖运行构建脚本（pnpm 10+ 默认禁止依赖的 postinstall）
+allowBuilds:
+  core-js: true
+  esbuild: true

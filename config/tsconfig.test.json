@@ -4,16 +4,10 @@
     "composite": true,
     "rootDir": "..",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "jsx": "preserve",
-    "types": [],
     "paths": {
       "@/*": ["../src/*"]
-    }
+    },
+    "types": ["node"]
   },
-  "include": [
-    "../src/**/*.ts",
-    "../src/**/*.d.ts",
-    "../src/**/*.vue",
-    "../src/**/*.tsx"
-  ]
+  "include": ["../src", "../tests", "../config/vitest.setup.ts"]
 }

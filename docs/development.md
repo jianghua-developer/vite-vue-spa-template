@@ -108,6 +108,7 @@ console.log(config.featureFlags.enableDarkMode)
 ### 架构
 
 ```
+src/config/             应用配置：index.ts 模块入口（constants / env）
 src/services/           API 层：index.ts 模块入口（barrel）+ types/ 子目录
   http.ts               axios 实例 + 拦截器（unwrapEnvelope 解包）
   api.ts                request（通用请求）/ requestEndpoint（端点调用）
@@ -589,7 +590,7 @@ beforeEach(() => {
 - 模块类型放 `types/` 子目录，文件按对应业务命名（如 `useRequest.d.ts` ↔ `useRequest.ts`）
 - 每个业务模块有一个 `index.ts` **barrel** 作为公开入口，内部文件不直接对外，统一 `from '@/模块'` 导入
 - 运行时产物（常量、class）不能放入 `.d.ts`，放在对应模块的 `.ts` 文件中
-  - 例：`BusinessError`（class）、`SUCCESS_CODE`（常量）放在 `src/services/errors.ts`
+  - 例：`BusinessError`（class）放在 `src/services/errors.ts`；`API_SUCCESS_CODE`（常量）放在 `src/config/constants.ts`
 
 现有类型布局：
 
@@ -597,6 +598,7 @@ beforeEach(() => {
 src/types/api.d.ts                共享：ApiResponse、PageResult、PageParams、RequestOptions
 src/types/axios.d.ts              共享：axios 模块增强（实例方法返回 Promise<T>）
 src/types/app-config.d.ts         共享：AppConfig + window.__APP_CONFIG__
+src/types/common.d.ts             共享：通用工具类型（ID、Nullable、PartialDeep）
 src/services/types/http.d.ts      服务层内部：CombinedConfig、HttpMethod
 src/services/types/apiPath.d.ts   服务层内部：ApiEndpoint、EndpointRequest、EndpointResponse
 src/composables/types/useRequest.d.ts   composables 内部：Method、UseRequestOptions、UseRequestReturn

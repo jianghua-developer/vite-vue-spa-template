@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { BusinessError, SUCCESS_CODE } from '@/services/errors'
+import { BusinessError } from '@/services/errors'
+import { API_SUCCESS_CODE } from '@/config'
 
-describe('SUCCESS_CODE', () => {
+describe('API_SUCCESS_CODE', () => {
   it('成功码为 00000', () => {
-    expect(SUCCESS_CODE).toBe('00000')
+    expect(API_SUCCESS_CODE).toBe('00000')
   })
 })
 

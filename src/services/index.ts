@@ -5,7 +5,7 @@ export { default as http } from './http'
 export { unwrapEnvelope } from './http'
 export { request, requestEndpoint } from './api'
 export { endpoint, apiPath } from './apiPath'
-export { SUCCESS_CODE, BusinessError } from './errors'
+export { BusinessError } from './errors'
 
 // 类型
 export type { CombinedConfig, HttpMethod } from './types/http'

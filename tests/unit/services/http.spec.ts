@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { unwrapEnvelope } from '@/services/http'
-import { BusinessError, SUCCESS_CODE } from '@/services/errors'
+import { BusinessError } from '@/services/errors'
+import { API_SUCCESS_CODE } from '@/config'
 
 describe('unwrapEnvelope', () => {
   it('成功包络返回 data', () => {
-    const body = { code: SUCCESS_CODE, data: { id: 1 }, msg: 'ok' }
+    const body = { code: API_SUCCESS_CODE, data: { id: 1 }, msg: 'ok' }
     expect(unwrapEnvelope(body, 200)).toEqual({ id: 1 })
   })
 
