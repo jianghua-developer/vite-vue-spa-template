@@ -35,14 +35,26 @@ api_base_url:
   type: str
   default: "/api"
 
+# ── 认证（前端无感刷新机制，与后端 auth_mode 对齐）──
+auth_mode:
+  type: str
+  choices:
+    "不接入认证": none
+    "不透明 token + Redis 会话（无感刷新）": opaque
+  default: opaque
+
 # ── 复制时排除（模板元文件/产物不进消费方）──
 _exclude:
   - "copier.yml"
   - "node_modules"
   - "dist"
 
-# ── 复制后安装依赖：先检查消费方有无 pnpm，无则提示安装命令 ──
+# ── 复制后按参数裁剪 + 安装依赖 ──
 _tasks:
+  # auth_mode=none 时移除认证模块、登录页骨架与测试（main/guards/routes/useRequest 的 [% if %] 已同步裁剪引用）
+  - command: rm -rf src/auth tests/unit/auth src/views/LoginView.vue
+    when: "[[ auth_mode == 'none' ]]"
+  # 安装依赖：先检查消费方有无 pnpm，无则提示安装命令
   - command: >-
       if command -v pnpm >/dev/null 2>&1; then
         pnpm install || echo "⚠️ 依赖安装失败，请手动运行: pnpm install";

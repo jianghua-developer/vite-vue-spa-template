@@ -1,4 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router'
+[% if auth_mode == 'opaque' %]
+const LoginView = () => import('@/views/LoginView.vue')
+[% endif %]
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -12,6 +15,13 @@ export const routes: RouteRecordRaw[] = [
       },
     ],
   },
+[% if auth_mode == 'opaque' %]
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginView,
+  },
+[% endif %]
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',

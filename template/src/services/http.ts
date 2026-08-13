@@ -20,16 +20,7 @@ instance.interceptors.request.use((config) => {
     config.timeout = config._options.timeout
   }
 
-  // 端点级鉴权（apiPath 登记 authRequired: true 的端点触发）
-  // ┌──────────────────────────────────────────────────────────┐
-  // │  示例：从鉴权存储读取 token，注入 Authorization 头          │
-  // │  const token = getToken()                                │
-  // │  if (token) config.headers.Authorization = `Bearer ${token}`│
-  // └──────────────────────────────────────────────────────────┘
-  if (config._options?.authRequired) {
-    // TODO: 注入鉴权凭证
-  }
-
+  // 认证（x-access-token 注入 / 401 无感刷新）由 src/auth/attachAuth 挂载，不在此处。
   return config
 })
 
@@ -69,12 +60,7 @@ instance.interceptors.response.use(
     // │  }                                                       │
     // └──────────────────────────────────────────────────────────┘
 
-    // ┌─ 全局：鉴权处理（401 无感刷新可配合 src/utils/lockGate）─┐
-    // │  if (error.response?.status === 401) {                  │
-    // │    // 用 lockGate 单飞刷新 token，成功则重放原请求        │
-    // │    // 刷新失败则跳转登录页                               │
-    // │  }                                                       │
-    // └──────────────────────────────────────────────────────────┘
+    // 认证（401 无感刷新）由 src/auth/attachAuth 处理，不在此处。
 
     // 仍 reject，局部 error ref 可接收
     return Promise.reject(error)

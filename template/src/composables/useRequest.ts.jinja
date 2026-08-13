@@ -2,6 +2,9 @@ import type { Ref } from 'vue'
 import { request } from '@/services/api'
 import type { CombinedConfig } from '@/services/types/http'
 import type { UseRequestOptions, UseRequestReturn } from './types/useRequest'
+[% if auth_mode == 'opaque' %]
+import { isAuthExpired, redirectToLogin } from '@/auth'
+[% endif %]
 
 export function useRequest<T>(
   url: string,
@@ -30,6 +33,10 @@ export function useRequest<T>(
       return data.value
     } catch (e) {
       error.value = e
+[% if auth_mode == 'opaque' %]
+      // 外层拦截认证失效错误码（40103）跳登录——导航在数据层，不在拦截器
+      if (isAuthExpired(e)) redirectToLogin()
+[% endif %]
       return null
     } finally {
       loading.value = false

@@ -1,7 +1,15 @@
 import App from './App.vue'
 import router from './router'
 import pinia from './stores'
+[% if auth_mode == 'opaque' %]
+import { initAuth } from '@/auth'
+[% endif %]
 import '@/assets/styles/main.css'
+
+[% if auth_mode == 'opaque' %]
+// 挂认证拦截器（请求注入 x-access-token；401 无感刷新；40103 失效由外层 useRequest 跳登录）
+initAuth()
+[% endif %]
 
 const app = createApp(App)
 

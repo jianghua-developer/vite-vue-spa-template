@@ -4,6 +4,8 @@
 export { formatDate, formatDateTime, formatCurrency } from './format'
 export { isEmail, isRequired } from './validation'
 export { createConcurrencyLimiter, createLockGate } from './lockGate'
+export { tokenStorage, getToken, setToken, getRefreshToken, setRefreshToken, clearToken } from './tokenStorage'
 
 // 类型
 export type { ConcurrencyLimiter, LockGate, LockGateOptions } from './types/lockGate'
+export type { TokenStorage } from './types/tokenStorage'

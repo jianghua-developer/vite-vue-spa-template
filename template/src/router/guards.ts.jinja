@@ -1,0 +1,25 @@
+import type { Router } from 'vue-router'
+import { APP_NAME } from '@/config'
+[% if auth_mode == 'opaque' %]
+import { getToken } from '@/utils'
+[% endif %]
+
+export function setupGuards(router: Router) {
+  // 设置页面标题（后缀为应用名）
+  router.afterEach((to) => {
+    const title = to.meta.title as string | undefined
+    document.title = title ? `${title} | ${APP_NAME}` : APP_NAME
+  })
+
+[% if auth_mode == 'opaque' %]
+  // 鉴权守卫：受保护路由（meta.requiresAuth）未登录 → 跳登录页
+  router.beforeEach((to) => {
+    if (to.meta.requiresAuth === true && !getToken()) {
+      return { name: 'login' }
+    }
+  })
+[% else %]
+  // 鉴权守卫（auth_mode=none，无认证）
+  router.beforeEach(() => {})
+[% endif %]
+}
