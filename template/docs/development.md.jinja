@@ -1,6 +1,6 @@
 # 开发指南
 
-> 本文档面向 {{name}} 项目的开发者，涵盖环境配置、API 调用、组件开发、测试等日常操作。
+> 本文档面向 [[project_name]] 项目的开发者，涵盖环境配置、API 调用、组件开发、测试等日常操作。
 
 ## 目录
 
@@ -82,7 +82,7 @@ pnpm run lint:fix     # ESLint 自动修复
 // public/config.js
 ;(function () {
   Object.assign(window.__APP_CONFIG__, {
-    apiBaseUrl: '{{apiBaseUrl}}',
+    apiBaseUrl: '[[api_base_url]]',
     // timeout: 20000,  // 按需覆盖
   })
 })()
@@ -561,7 +561,7 @@ import { useAppConfig, resetAppConfig } from '@/composables'
 beforeEach(() => {
   resetAppConfig()  // 先重置单例
   window.__APP_CONFIG__ = {  // 再设置 mock
-    apiBaseUrl: '{{apiBaseUrl}}',
+    apiBaseUrl: '[[api_base_url]]',
     timeout: 10000,
     featureFlags: {},
     appVersion: '0.0.0',
@@ -710,7 +710,7 @@ BASE_URL=/my-app/ pnpm run build
 ```typescript
 ;(function () {
   Object.assign(window.__APP_CONFIG__, {
-    apiBaseUrl: '{{apiBaseUrl}}',
+    apiBaseUrl: '[[api_base_url]]',
   })
 })()
 ```

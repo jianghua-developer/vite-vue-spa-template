@@ -1,6 +1,6 @@
-# {{name}} 项目架构
+# [[project_name]] 项目架构
 
-> 本文档描述 `{{name}}` 项目（下称"本项目"）的整体架构。
+> 本文档描述 `[[project_name]]` 项目（下称"本项目"）的整体架构。
 >
 > **读者对象**：
 >
@@ -66,7 +66,7 @@
 ## 2. 目录结构与职责
 
 ```text
-{{name}}/
+[[project_name]]/
 │
 ├── index.html                              # ★ 入口 HTML（项目根目录）：加载 config.js 后挂载 Vue
 │
@@ -296,7 +296,7 @@ L2 的 `public/config.js` 示例（按需覆盖字段；`apiBaseUrl` 请替换�
 // 仅覆盖需要改的字段，其余从构建时注入的默认值继承；运维可直接修改，无需重新打包
 ;(function () {
   Object.assign(window.__APP_CONFIG__, {
-    apiBaseUrl: '{{apiBaseUrl}}',
+    apiBaseUrl: '[[api_base_url]]',
     // timeout: 20000,           // 按需覆盖
     // featureFlags: { ... },    // 按需覆盖
   })

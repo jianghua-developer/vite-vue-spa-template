@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────
+# Vite + Vue 3 SPA 前端底座 · copier 参数契约
+# _envops 把 jinja 标签改为 [[ ]] / [% %] / [# #]，避开 Vue 模板的 {{ }}
+# ─────────────────────────────────────────────
+_min_copier_version: "9.0.0"
+
+_envops:
+  variable_start_string: "[["
+  variable_end_string: "]]"
+  block_start_string: "[%"
+  block_end_string: "%]"
+  comment_start_string: "[#"
+  comment_end_string: "#]"
+
+# ── 身份 ────────────────────────────────────
+project_name:
+  type: str
+  help: 项目名（小写字母开头，仅字母/数字/连字符）
+  validator: >-
+    [% if not (project_name | regex_search('^[a-z][a-z0-9-]*$')) %]
+    project_name 必须以小写字母开头，仅含小写字母/数字/连字符
+    [% endif %]
+  default: "my-app"
+
+project_description:
+  type: str
+  default: ""
+
+project_title:
+  type: str
+  default: ""
+
+# ── 接入 ────────────────────────────────────
+api_base_url:
+  type: str
+  default: "/api"
+
+# ── 复制时排除（模板元文件/产物不进消费方）──
+_exclude:
+  - "copier.yml"
+  - "node_modules"
+  - "dist"
+
+# ── 复制后安装依赖：先检查消费方有无 pnpm，无则提示安装命令 ──
+_tasks:
+  - command: >-
+      if command -v pnpm >/dev/null 2>&1; then
+        pnpm install || echo "⚠️ 依赖安装失败，请手动运行: pnpm install";
+      else
+        echo "⚠️ 未检测到 pnpm 命令，请先安装 pnpm 再安装依赖: npm install -g pnpm && pnpm install";
+      fi
