@@ -1,0 +1,23 @@
+# 模板仓库自身忽略（消费方 .gitignore 由 .gitignore.template 复制改名生成，会忽略 .env*；
+# 本仓库需把 .env* 占位符源提交给 frontend-template-copier 复制，故此处不含 .env*）
+
+# 依赖与构建产物
+node_modules
+dist
+dist-ssr
+coverage
+.vite/
+
+# 工具链缓存
+*.tsbuildinfo
+*.local
+
+# 编辑器 / 系统
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.log
+
+# 本仓库 CLAUDE.md 只属底座：不进 git，也不进消费方生成物（.scaffoldrc.json copyExcludes 已排除）
+CLAUDE.md

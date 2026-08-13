@@ -82,7 +82,9 @@
     ".git",
     "dist",
     ".env.local",
-    ".DS_Store"
+    ".DS_Store",
+    "CLAUDE.md",
+    ".gitignore"
   ],
   "globExcludes": [
     ".local",
