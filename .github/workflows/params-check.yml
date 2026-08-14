@@ -57,6 +57,6 @@ jobs:
               owner: 'jianghua-developer',
               repo: 'fullstack-bridge',
               workflow_id: 'check-drift.yml',
-              ref: 'refs/heads/refactor/params-protocol',
+              ref: 'refs/heads/main',
               inputs: { base_repo: repo, base_version: sha },
             });
